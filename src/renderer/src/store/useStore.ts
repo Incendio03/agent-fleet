@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  AgentInfo,
   CreateProjectOptions,
   CreateTabOptions,
   UpdateProjectOptions,
@@ -34,6 +35,8 @@ interface FleetState {
   liveTabIds: Set<string>
   loading: boolean
   error: string | null
+  /** Agent CLIs detected on this machine (with their models/efforts). */
+  agents: AgentInfo[]
   /** Image currently shown in the full-window viewer, if any. */
   viewer: { src: string; path: string } | null
 
@@ -45,6 +48,8 @@ interface FleetState {
   removeProject: (projectId: string) => Promise<void>
   updateProject: (projectId: string, opts: UpdateProjectOptions) => Promise<void>
   updateTab: (tabId: string, opts: UpdateTabOptions) => Promise<void>
+  restartTab: (tabId: string, fresh?: boolean) => Promise<void>
+  setAgents: (agents: AgentInfo[]) => void
   createTab: (opts: CreateTabOptions) => Promise<void>
   resumeTab: (tabId: string) => Promise<void>
   closeTab: (tabId: string, deleteBranch?: boolean) => Promise<void>
@@ -64,6 +69,7 @@ export const useStore = create<FleetState>((set, get) => ({
   loading: true,
   error: null,
   viewer: null,
+  agents: [],
 
   openImage: async (path) => {
     try {
@@ -82,6 +88,8 @@ export const useStore = create<FleetState>((set, get) => ({
         window.fleet.listTabs()
       ])
       set({ projects, tabs })
+      // Detect installed agent CLIs in the background (feeds the agent/model dropdowns).
+      void window.fleet.listAgents().then((agents) => set({ agents })).catch(() => {})
       // Subscribe once to live backend events that mutate tab state.
       window.fleet.onTabStatus((tabId, status) => get().setTabStatus(tabId, status))
       window.fleet.onTabExit((tabId, exitCode) =>
@@ -140,6 +148,21 @@ export const useStore = create<FleetState>((set, get) => ({
     const tab = await window.fleet.updateTab(tabId, opts)
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...tab, status: t.status } : t)) }))
     void pushTab(tab)
+  },
+
+  setAgents: (agents) => set({ agents }),
+
+  restartTab: async (tabId, fresh) => {
+    try {
+      await window.fleet.restartTab(tabId, fresh)
+      set((s) => {
+        const live = new Set(s.liveTabIds)
+        live.add(tabId)
+        return { liveTabIds: live }
+      })
+    } catch (err) {
+      set({ error: (err as Error).message })
+    }
   },
 
   removeProject: async (projectId) => {

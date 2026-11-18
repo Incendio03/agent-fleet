@@ -696,3 +696,79 @@ body {
 .message-arrow { color: var(--text-dim); }
 .message-time { margin-left: auto; font-size: 11px; color: var(--text-dim); }
 .message-text { margin-top: 4px; font-size: 13px; white-space: pre-wrap; word-break: break-word; color: var(--text); }
+
+/* ---- Agent bar (agent / model / effort above the terminal) ---- */
+.agent-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.agent-field { display: flex; align-items: center; gap: 5px; color: var(--text-dim); margin: 0; cursor: pointer; }
+.agent-field:hover { color: var(--text); }
+.agent-field svg { flex-shrink: 0; }
+.agent-field select {
+  background: var(--bg-elev);
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 12px;
+  width: auto;
+  cursor: pointer;
+}
+.agent-field select:hover { border-color: var(--border); }
+.agent-field select:focus { outline: none; border-color: var(--accent); }
+.agent-bar-note { margin-left: auto; color: var(--text-dim); font-size: 11px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+/* ---- Agents settings ---- */
+.sidebar-header { align-items: center; }
+.sidebar-header-right { display: flex; align-items: center; gap: 4px; }
+.settings-btn { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; }
+.agents-head { display: flex; align-items: center; justify-content: space-between; }
+.agents-head h2 { margin: 0; }
+.agent-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.agent-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev2);
+}
+.agent-card-main { flex: 1; min-width: 0; }
+.agent-card-title { font-weight: 600; font-size: 14px; display: flex; align-items: baseline; gap: 8px; }
+.agent-version { font-weight: 400; font-size: 11px; color: var(--text-dim); }
+.agent-card-status { margin-top: 4px; font-size: 12px; }
+.agent-card-status .ok { color: var(--green); }
+.agent-card-status .warn { color: var(--yellow); }
+.agent-card-status .dim { color: var(--text-dim); }
+.agent-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.agent-install { margin-top: 8px; font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.agent-install code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; color: var(--text); user-select: all; }
+.agent-install a { color: var(--accent); }
+.agent-more { font-size: 12px; color: var(--text-dim); padding: 4px 2px; }
+.agent-login-head { display: flex; flex-direction: column; gap: 2px; font-size: 13px; margin-bottom: 8px; }
+.agent-login-head span { color: var(--text-dim); font-size: 12px; }
+.agent-login-term { position: relative; height: 320px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.sidebar-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.sidebar-settings:hover { color: var(--text); background: var(--bg-elev2); }

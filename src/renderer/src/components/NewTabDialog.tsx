@@ -1,18 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
-import type { EffortLevel, ModelAlias, PermissionMode, Tab } from '@shared/types'
-
-const MODELS: { value: ModelAlias; label: string }[] = [
-  { value: 'sonnet', label: 'Sonnet — balanced (default)' },
-  { value: 'opus', label: 'Opus — most capable' },
-  { value: 'haiku', label: 'Haiku — fastest' }
-]
-
-const EFFORTS: { value: EffortLevel; label: string }[] = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' }
-]
+import type { AgentKind, EffortLevel, ModelAlias, PermissionMode, Tab } from '@shared/types'
+import { modelOptions, effortOptions } from './AgentBar'
 
 // The three interaction modes, mapped to claude --permission-mode values.
 const MODES: { value: PermissionMode; label: string; hint: string }[] = [
@@ -37,8 +26,19 @@ export function NewTabDialog({
   const editing = tab != null
   const [title, setTitle] = useState(tab?.title ?? '')
   const [task, setTask] = useState(tab?.task ?? '')
+  const agents = useStore((s) => s.agents)
+  const [agentKind, setAgentKind] = useState<AgentKind>(tab?.agent ?? 'claude')
+  const agent = agents.find((a) => a.id === agentKind)
   const [model, setModel] = useState<ModelAlias>(tab?.model ?? 'sonnet')
   const [effort, setEffort] = useState<EffortLevel>(tab?.effort ?? 'high')
+  const pickAgent = (id: AgentKind): void => {
+    setAgentKind(id)
+    const next = agents.find((a) => a.id === id)
+    const m = next?.models[0]?.id ?? ''
+    setModel(m)
+    const efforts = effortOptions(next, m)
+    setEffort(efforts.includes('medium') ? 'medium' : efforts[0] ?? '')
+  }
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(tab?.permissionMode ?? 'acceptEdits')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -52,7 +52,7 @@ export function NewTabDialog({
     setBusy(true)
     try {
       if (tab) {
-        await updateTab(tab.id, { title: title.trim(), task: task.trim(), model, effort, permissionMode })
+        await updateTab(tab.id, { title: title.trim(), task: task.trim(), agent: agentKind, model, effort, permissionMode })
         onClose()
         return
       }
@@ -61,6 +61,7 @@ export function NewTabDialog({
       await createTab({
         projectId,
         title: title.trim(),
+        agent: agentKind,
         task: task.trim(),
         model,
         effort,
@@ -109,20 +110,31 @@ export function NewTabDialog({
           onChange={(e) => setTask(e.target.value)}
         />
 
-        <div className="grid-2">
+        <div className="grid-3">
+          <div>
+            <label>Agent</label>
+            <select value={agentKind} onChange={(e) => pickAgent(e.target.value as AgentKind)}>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id} disabled={!a.available}>
+                  {a.label}{a.available ? '' : ' (not installed)'}
+                </option>
+              ))}
+              {agents.length === 0 && <option value={agentKind}>Claude Code</option>}
+            </select>
+          </div>
           <div>
             <label>Model</label>
-            <select value={model} onChange={(e) => setModel(e.target.value as ModelAlias)}>
-              {MODELS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
+            <select value={model} onChange={(e) => setModel(e.target.value)}>
+              {modelOptions(agent, model).map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
               ))}
             </select>
           </div>
           <div>
             <label>Effort</label>
-            <select value={effort} onChange={(e) => setEffort(e.target.value as EffortLevel)}>
-              {EFFORTS.map((e) => (
-                <option key={e.value} value={e.value}>{e.label}</option>
+            <select value={effort} onChange={(e) => setEffort(e.target.value)}>
+              {effortOptions(agent, model, effort).map((x) => (
+                <option key={x} value={x}>{x}</option>
               ))}
             </select>
           </div>

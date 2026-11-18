@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import * as pty from 'node-pty'
 import type { IPty } from 'node-pty'
 import type { Tab, TabStatus } from '@shared/types'
-import { buildClaudeCommand } from './claude'
+import { buildAgentCommand } from './agents'
 
 /**
  * Owns the live pseudo-terminal (PTY) process behind every tab.
@@ -49,41 +49,44 @@ export class SessionManager extends EventEmitter {
 
     this.setStatus(tab.id, 'starting')
 
-    const { file, args } = await buildClaudeCommand({
-      projectId: tab.projectId,
-      title: tab.title,
-      task: tab.task,
-      model: tab.model,
-      effort: tab.effort,
-      permissionMode: tab.permissionMode,
-      sessionId: tab.sessionId,
+    const { file, args } = await buildAgentCommand(tab, {
       resume,
       sessionName: team?.sessionName,
       appendSystemPrompt: team?.prompt
     })
+    this.spawnCommand(tab.id, file, args, tab.worktreePath, cols, rows)
+  }
 
+  /**
+   * Run any command in a PTY under `id` (an agent tab, or a utility terminal
+   * such as an agent sign-in). Output/exit flow through the same events.
+   */
+  spawnCommand(id: string, file: string, args: string[], cwd: string, cols = 80, rows = 24): void {
+    if (this.sessions.has(id)) throw new Error(`Session ${id} already running`)
     // On Windows node-pty uses ConPTY under the hood.
     const proc = pty.spawn(file, args, {
       name: 'xterm-color',
       cols: cols || 80,
       rows: rows || 24,
-      cwd: tab.worktreePath,
-      // Inherit env so claude reads the shared ~/.claude credentials — one
-      // login serves every tab. UTF-8 avoids mojibake in the TUI.
+      cwd,
+      // Inherit env so each CLI reads its shared saved login — one login serves
+      // every tab. UTF-8 avoids mojibake in the TUI.
       env: { ...process.env, LANG: 'en_US.UTF-8', FORCE_COLOR: '1' } as Record<string, string>
     })
 
-    const session: Session = { tabId: tab.id, proc, status: 'running' }
-    this.sessions.set(tab.id, session)
-    this.setStatus(tab.id, 'running')
+    const session: Session = { tabId: id, proc, status: 'running' }
+    this.sessions.set(id, session)
+    this.setStatus(id, 'running')
 
-    proc.onData((chunk) => this.emit('data', tab.id, chunk))
+    proc.onData((chunk) => this.emit('data', id, chunk))
 
     proc.onExit(({ exitCode }) => {
-      this.sessions.delete(tab.id)
+      // A restart may already have replaced this session; only clean up our own.
+      if (this.sessions.get(id)?.proc !== proc) return
+      this.sessions.delete(id)
       if (this.shuttingDown) return
-      this.setStatus(tab.id, exitCode === 0 ? 'exited' : 'error')
-      this.emit('exit', tab.id, exitCode)
+      this.setStatus(id, exitCode === 0 ? 'exited' : 'error')
+      this.emit('exit', id, exitCode)
     })
   }
 

@@ -8,11 +8,28 @@ export type PermissionMode =
   | 'acceptEdits' // auto-accept file edits, confirm risky commands
   | 'bypassPermissions' // fully autonomous, no prompts
 
-/** Claude model choice for a tab. */
-export type ModelAlias = 'opus' | 'sonnet' | 'haiku'
+/** Which agent CLI runs a tab. */
+export type AgentKind = 'claude' | 'codex'
 
-/** Reasoning effort for a tab. Maps to claude --effort. */
-export type EffortLevel = 'low' | 'medium' | 'high'
+/** Model id for a tab (detected per agent — e.g. 'opus' for Claude Code, a slug for Codex). */
+export type ModelAlias = string
+
+/** Reasoning effort for a tab (detected per agent/model, e.g. low…max). */
+export type EffortLevel = string
+
+/** An agent CLI as detected on this machine, with what it supports. */
+export interface AgentInfo {
+  id: AgentKind
+  label: string
+  /** Installed and runnable here. */
+  available: boolean
+  models: { id: string; label: string; efforts: string[] }[]
+  /** All effort levels this agent accepts (union over models). */
+  efforts: string[]
+  supportsResume: boolean
+  /** Named sessions + teammate messaging (Claude Code only today). */
+  supportsTeam: boolean
+}
 
 /** A project is a pointer to a git repo on disk + its remote. */
 export interface Project {
@@ -33,6 +50,8 @@ export interface Tab {
   id: string
   projectId: string
   title: string
+  /** Agent CLI running this tab (missing = 'claude', for older tabs). */
+  agent?: AgentKind
   /** The task prompt the agent was seeded with. */
   task: string
   model: ModelAlias
@@ -59,6 +78,7 @@ export interface CreateTabOptions {
   projectId: string
   /** The agent's name/role, e.g. "Software Engineer". Used as the tab label. */
   title: string
+  agent?: AgentKind
   /** Optional role / initial instructions to seed the agent with (may be empty). */
   task: string
   model: ModelAlias
@@ -88,10 +108,24 @@ export interface UpdateProjectOptions {
 /** Editable fields of an agent tab (model/effort/mode apply on next launch/resume). */
 export interface UpdateTabOptions {
   title: string
+  agent?: AgentKind
   task: string
   model: ModelAlias
   effort: EffortLevel
   permissionMode: PermissionMode
+}
+
+/** Install + sign-in state of an agent CLI (from its own status command). */
+export interface AgentStatus {
+  id: AgentKind
+  installed: boolean
+  version?: string
+  loggedIn: boolean
+  /** e.g. "you@example.com · Claude account" or "Logged in using ChatGPT". */
+  account?: string
+  /** Suggested install command and docs link (shown when not installed). */
+  install?: string
+  docs?: string
 }
 
 /** One agent-to-agent message, read from the sender's Claude transcript. */
@@ -118,6 +152,12 @@ export const IPC = {
   tabCreate: 'tab:create',
   tabResume: 'tab:resume',
   tabClose: 'tab:close',
+  tabRestart: 'tab:restart', // stop + relaunch an agent (to apply new settings)
+  agentsList: 'agents:list', // detected agent CLIs + their models/efforts
+  agentStatus: 'agents:status', // installed/version/signed-in for one agent
+  agentLogin: 'agents:login', // run the agent's sign-in in a utility terminal
+  agentLogout: 'agents:logout',
+  tabKill: 'tab:kill', // stop a utility terminal (e.g. a sign-in) without removing anything
   tabUpdate: 'tab:update',
   tabInput: 'tab:input',
   tabResize: 'tab:resize',

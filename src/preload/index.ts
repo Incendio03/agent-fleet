@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type CreateProjectOptions,
+  type AgentInfo,
+  type AgentKind,
+  type AgentStatus,
   type CreateTabOptions,
   type FleetMessage,
   type UpdateProjectOptions,
@@ -55,6 +58,14 @@ const api = {
     ipcRenderer.on(IPC.browserZoom, h)
     return () => ipcRenderer.removeListener(IPC.browserZoom, h)
   },
+
+  // --- Agents ---
+  listAgents: (refresh?: boolean): Promise<AgentInfo[]> => ipcRenderer.invoke(IPC.agentsList, refresh),
+  restartTab: (tabId: string, fresh?: boolean): Promise<Tab> => ipcRenderer.invoke(IPC.tabRestart, tabId, fresh),
+  agentStatus: (id: AgentKind): Promise<AgentStatus> => ipcRenderer.invoke(IPC.agentStatus, id),
+  agentLogin: (id: AgentKind): Promise<string> => ipcRenderer.invoke(IPC.agentLogin, id),
+  agentLogout: (id: AgentKind): Promise<void> => ipcRenderer.invoke(IPC.agentLogout, id),
+  killSession: (id: string): Promise<void> => ipcRenderer.invoke(IPC.tabKill, id),
 
   // --- Team ---
   readBoard: (projectId: string): Promise<string> => ipcRenderer.invoke(IPC.boardRead, projectId),

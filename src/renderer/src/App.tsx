@@ -7,6 +7,7 @@ import { TerminalView } from './components/TerminalView'
 import { NewProjectDialog } from './components/NewProjectDialog'
 import { NewTabDialog } from './components/NewTabDialog'
 import { SidePanel } from './components/SidePanel'
+import { AgentBar } from './components/AgentBar'
 import { ImageViewer } from './components/ImageViewer'
 import { SplashScreen } from './components/SplashScreen'
 
@@ -129,6 +130,9 @@ export default function App(): JSX.Element {
                 </div>
               )}
             </div>
+
+            {/* Sits right under the terminal, next to the agent's input box. */}
+            {activeTab && <AgentBar tab={activeTab} />}
           </>
         )}
       </main>

@@ -12,6 +12,9 @@ import {
   type CreateTabOptions,
   type UpdateProjectOptions,
   type UpdateTabOptions,
+  type AgentInfo,
+  type AgentKind,
+  type AgentStatus,
   type FleetMessage,
   type Project,
   type Tab
@@ -19,6 +22,8 @@ import {
 import { store } from './store'
 import { sessionManager } from './sessionManager'
 import { createWorktree, removeWorktree, isGitRepo } from './worktree'
+import { detectAgents, agentOf, agentStatus, agentPath, agentLogout, AGENT_AUTH } from './agents'
+import { homedir } from 'node:os'
 import { teamContext, projectMessages, projectSessionNames, readBoard, writeBoard } from './team'
 
 const execFileAsync = promisify(execFile)
@@ -121,6 +126,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       id: randomUUID(),
       projectId: opts.projectId,
       title: opts.title,
+      agent: opts.agent ?? 'claude',
       task: opts.task,
       model: opts.model,
       effort: opts.effort,
@@ -135,7 +141,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     await store.addTab(tab)
 
     // Spawn the agent. Start at a sane default size; UI resizes immediately.
-    await sessionManager.spawn({ tab, cols: 80, rows: 24, team: await teamContext(tab).catch(() => null) })
+    await sessionManager.spawn({ tab, cols: 80, rows: 24, team: agentOf(tab) === 'claude' ? await teamContext(tab).catch(() => null) : null })
     return tab
   })
 
@@ -151,7 +157,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
           `Its code/conversation live where it was created.`
       )
     }
-    await sessionManager.spawn({ tab, cols: 80, rows: 24, resume: true, team: await teamContext(tab).catch(() => null) })
+    await sessionManager.spawn({ tab, cols: 80, rows: 24, resume: true, team: agentOf(tab) === 'claude' ? await teamContext(tab).catch(() => null) : null })
     return tab
   })
 
@@ -180,7 +186,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   // model/effort/mode take effect the next time it is launched or resumed.
   ipcMain.handle(IPC.tabUpdate, async (_e, tabId: string, opts: UpdateTabOptions): Promise<Tab> => {
     if (!opts.title.trim()) throw new Error('Name is required.')
+    const before = (await store.listTabs()).find((t) => t.id === tabId)
+    const agentChanged = opts.agent != null && before != null && agentOf(before) !== opts.agent
     await store.updateTab(tabId, {
+      ...(opts.agent ? { agent: opts.agent } : {}),
+      // A different agent can't continue the old conversation: give it a fresh session.
+      ...(agentChanged ? { sessionId: randomUUID() } : {}),
       title: opts.title.trim(),
       task: opts.task.trim(),
       model: opts.model,
@@ -189,6 +200,37 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     })
     const tab = (await store.listTabs()).find((t) => t.id === tabId)
     if (!tab) throw new Error('Tab not found')
+    return tab
+  })
+
+  ipcMain.handle(IPC.tabKill, async (_e, id: string): Promise<void> => sessionManager.kill(id))
+  ipcMain.handle(IPC.agentsList, async (_e, refresh?: boolean): Promise<AgentInfo[]> => detectAgents(refresh))
+
+  ipcMain.handle(IPC.agentStatus, async (_e, id: AgentKind): Promise<AgentStatus> => agentStatus(id))
+
+  // Sign in: run the CLI's own login flow in a utility terminal the UI shows
+  // in a dialog (it may open the browser and/or ask for input). Returns the
+  // terminal's session id. The CLI stores the credentials itself.
+  ipcMain.handle(IPC.agentLogin, async (_e, id: AgentKind): Promise<string> => {
+    const path = await agentPath(id)
+    if (!path) throw new Error('Agent is not installed.')
+    const sid = `auth:${id}`
+    sessionManager.kill(sid)
+    sessionManager.spawnCommand(sid, path, AGENT_AUTH[id].login, homedir(), 90, 20)
+    return sid
+  })
+
+  ipcMain.handle(IPC.agentLogout, async (_e, id: AgentKind): Promise<void> => agentLogout(id))
+
+  // Stop a tab's agent and launch it again with its saved settings. `fresh`
+  // starts a new conversation (e.g. after switching agent CLI); otherwise the
+  // conversation is resumed so the agent keeps its memory.
+  ipcMain.handle(IPC.tabRestart, async (_e, tabId: string, fresh = false): Promise<Tab> => {
+    const tab = (await store.listTabs()).find((t) => t.id === tabId)
+    if (!tab) throw new Error('Tab not found')
+    sessionManager.kill(tabId)
+    const team = agentOf(tab) === 'claude' ? await teamContext(tab).catch(() => null) : null
+    await sessionManager.spawn({ tab, cols: 80, rows: 24, resume: !fresh, team })
     return tab
   })
 

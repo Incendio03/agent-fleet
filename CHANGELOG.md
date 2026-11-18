@@ -24,6 +24,20 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 ### Added
+- **Agents settings** (gear in the sidebar header). Shows each agent CLI's version
+  and sign-in state (from `claude auth status` / `codex login status`). Sign in,
+  switch account, or sign out; sign-in runs the CLI's own login flow in an embedded
+  terminal, so credentials stay with each CLI. Not-installed agents show an install
+  command and setup guide.
+- **Agent / Model / Effort bar above each terminal.** Switch the tab's agent CLI,
+  model and effort from dropdowns. Options are detected on this machine: installed
+  agents (Claude Code, Codex), Claude's model aliases + effort levels from
+  `claude --help`, Codex models + per-model efforts from `~/.codex/models_cache.json`.
+  A running agent restarts to apply: same agent resumes the conversation, a
+  different agent starts fresh. Also in the New/Edit agent dialog.
+- **Codex support** as a tab agent (model, reasoning effort, approval mode mapped
+  from the interaction mode; resume via `codex resume --last`). Named sessions and
+  teammate messaging remain Claude Code only.
 - **Named agents.** Each agent's Claude session is named `<project>-<role>` (e.g.
   `agent-fleet-code-reviewer`) via `--name`, which is the address teammates use with
   Claude Code's built-in SendMessage. Each agent also gets a team prompt
