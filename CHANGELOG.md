@@ -24,6 +24,16 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-11-18
+### Fixed
+- **Blank terminal after restart.** A restored tab could read as `running` even
+  though no agent process existed, so the Resume overlay didn't appear and the
+  terminal showed blank. "Is this tab live?" is now tracked from actual sessions
+  in the current app run (`liveTabIds`), not the persisted status — so restored
+  tabs reliably show the Resume overlay.
+### Added
+- `CLAUDE.md` — project context/handoff file auto-loaded by Claude Code.
+
 ## [0.2.0] — 2026-11-18
 ### Changed
 - **Tabs are now agents/roles, not one-off tasks.** The new-agent dialog asks for
@@ -57,6 +67,7 @@ First working version.
 - **Local-first persistence** — projects/tabs saved to a local JSON store; the
   app works fully offline when Supabase isn't configured.
 
-[Unreleased]: https://github.com/Incendio03/agent-fleet/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Incendio03/agent-fleet/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Incendio03/agent-fleet/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Incendio03/agent-fleet/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Incendio03/agent-fleet/releases/tag/v0.1.0

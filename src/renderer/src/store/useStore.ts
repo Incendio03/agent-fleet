@@ -23,6 +23,13 @@ interface FleetState {
   tabs: Tab[]
   activeProjectId: string | null
   activeTabId: string | null
+  /**
+   * Ids of tabs that have a LIVE agent process in this app run. This is the
+   * source of truth for "is this tab running?" — NOT the persisted status,
+   * which can be stale after a restart (and would otherwise leave a blank
+   * terminal with no Resume overlay).
+   */
+  liveTabIds: Set<string>
   loading: boolean
   error: string | null
 
@@ -45,6 +52,7 @@ export const useStore = create<FleetState>((set, get) => ({
   tabs: [],
   activeProjectId: null,
   activeTabId: null,
+  liveTabIds: new Set<string>(),
   loading: true,
   error: null,
 
@@ -111,7 +119,11 @@ export const useStore = create<FleetState>((set, get) => ({
   createTab: async (opts) => {
     try {
       const tab = await window.fleet.createTab(opts)
-      set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
+      set((s) => {
+        const live = new Set(s.liveTabIds)
+        live.add(tab.id) // it's spawning now — mark live so no Resume overlay shows
+        return { tabs: [...s.tabs, tab], activeTabId: tab.id, liveTabIds: live }
+      })
       void pushTab(tab) // mirror to cloud (no-op if not signed in)
     } catch (err) {
       set({ error: (err as Error).message })
@@ -122,7 +134,11 @@ export const useStore = create<FleetState>((set, get) => ({
   resumeTab: async (tabId) => {
     try {
       await window.fleet.resumeTab(tabId)
-      // Status transitions (starting -> running) arrive via the status event.
+      set((s) => {
+        const live = new Set(s.liveTabIds)
+        live.add(tabId) // re-spawned — it's live again
+        return { liveTabIds: live }
+      })
     } catch (err) {
       set({ error: (err as Error).message })
     }
@@ -134,30 +150,46 @@ export const useStore = create<FleetState>((set, get) => ({
     set((s) => {
       const tabs = s.tabs.filter((t) => t.id !== tabId)
       const sameProject = tabs.filter((t) => t.projectId === s.activeProjectId)
+      const live = new Set(s.liveTabIds)
+      live.delete(tabId)
       return {
         tabs,
+        liveTabIds: live,
         activeTabId: s.activeTabId === tabId ? sameProject[0]?.id ?? null : s.activeTabId
       }
     })
   },
 
   setTabStatus: (tabId, status) =>
-    set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, status } : t)) })),
+    set((s) => {
+      const live = new Set(s.liveTabIds)
+      // A live agent is one that is starting or running; anything else
+      // (exited/error/idle) means no process, so it becomes resumable.
+      if (status === 'running' || status === 'starting') live.add(tabId)
+      else live.delete(tabId)
+      return {
+        tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, status } : t)),
+        liveTabIds: live
+      }
+    }),
 
   setError: (msg) => set({ error: msg }),
 
   // Pull the signed-in user's projects/tabs from Supabase and merge them into
-  // the current view (dedupe by id). Projects whose local folder no longer
-  // exists on this machine can be re-cloned from their GitHub URL.
+  // the current view (dedupe by id). Restored tabs have no live process here,
+  // so force their status to 'idle' (they'll show the Resume overlay).
   restoreFromCloud: async () => {
     const snap = await pullAll()
     if (!snap) return
     set((s) => {
       const projectIds = new Set(s.projects.map((p) => p.id))
       const tabIds = new Set(s.tabs.map((t) => t.id))
+      const restoredTabs = snap.tabs
+        .filter((t) => !tabIds.has(t.id))
+        .map((t) => ({ ...t, status: 'idle' as TabStatus }))
       return {
         projects: [...s.projects, ...snap.projects.filter((p) => !projectIds.has(p.id))],
-        tabs: [...s.tabs, ...snap.tabs.filter((t) => !tabIds.has(t.id))]
+        tabs: [...s.tabs, ...restoredTabs]
       }
     })
   }

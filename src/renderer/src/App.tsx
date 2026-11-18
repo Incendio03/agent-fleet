@@ -27,12 +27,14 @@ export default function App(): JSX.Element {
   }, [init])
 
   const resumeTab = useStore((s) => s.resumeTab)
+  const liveTabIds = useStore((s) => s.liveTabIds)
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
   const projectTabs = tabs.filter((t) => t.projectId === activeProjectId)
   const activeTab = projectTabs.find((t) => t.id === activeTabId) ?? null
-  // A tab whose agent isn't live can be resumed (restores its conversation).
-  const canResume =
-    activeTab != null && activeTab.status !== 'running' && activeTab.status !== 'starting'
+  // A tab with no live process in this app run can be resumed. Using liveTabIds
+  // (not the persisted status) ensures restored tabs always offer Resume instead
+  // of showing a blank terminal.
+  const canResume = activeTab != null && !liveTabIds.has(activeTab.id)
 
   return (
     <div className="app">
