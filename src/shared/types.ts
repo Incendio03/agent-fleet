@@ -20,7 +20,7 @@ export interface Project {
   name: string
   /** Absolute path to the repo root on this machine. */
   localPath: string
-  /** GitHub remote URL, if any (used to re-clone after a reset). */
+  /** GitHub remote URL, if any (used to re-clone the repo on another machine). */
   githubUrl?: string
   createdAt: number
 }

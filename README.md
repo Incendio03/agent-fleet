@@ -4,7 +4,7 @@ Your own agent management system: a desktop app where each **tab is a terminal
 running a Claude Code agent** on its own task. Group tabs under **projects**,
 let several agents work the same repo in parallel without colliding (each gets
 its own git worktree + branch), and optionally sync your setup to the cloud so
-it survives a laptop reset.
+your projects and tabs follow you across devices (and any fresh install).
 
 ---
 
@@ -16,7 +16,7 @@ it survives a laptop reset.
 | UI | **React + TypeScript + xterm.js** | Components + the actual terminal display |
 | Backend (Electron main) | **node-pty** | Runs `claude` in a real pseudo-terminal per tab |
 | Isolation | **git worktrees** | Each agent works on its own branch/folder |
-| Cloud (optional) | **Supabase** (Postgres + Auth + RLS) | Login + restore after a reset |
+| Cloud (optional) | **Supabase** (Postgres + Auth + RLS) | Login + sync your setup across devices |
 | Code hosting | **GitHub** | Your repos + one branch per agent task |
 
 ### How a tab works
@@ -66,16 +66,19 @@ launch an agent.
 
 ---
 
-## Optional: enable cloud login + restore (Supabase)
+## Optional: enable cloud login + cross-device sync (Supabase)
 
-This makes your projects/tabs come back after a laptop reset. Skip it and the
-app still runs locally.
+This ties your projects/tabs to your account instead of to one machine, so you
+can sign in on any device (a second computer, a fresh install, a new machine)
+and your setup is there. Skip it and the app still runs fully locally.
 
 ### 1. Create the Supabase project
 1. Go to <https://supabase.com> → **New project** (free tier is enough).
-2. When it's ready, open **Project Settings → API**:
-   - Copy the **Project URL**
-   - Copy the **anon public** key
+2. When it's ready, grab two values:
+   - **Project URL** — Project Settings → **Data API** (e.g. `https://<ref>.supabase.co`)
+   - **Publishable key** — Project Settings → **API Keys** (the `sb_publishable_…`
+     key; it's the modern "anon/public" key and is safe to ship. Never use the
+     **secret** key in the app — it bypasses RLS.)
 
 ### 2. Create the database schema (with security)
 Open **SQL Editor**, paste the contents of
@@ -109,8 +112,13 @@ VITE_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 Restart `npm run dev`. The sidebar footer now shows **Sign in with GitHub**.
 It opens your browser, GitHub redirects back via `agentfleet://`, and your
-projects/tabs sync. After a reset: install the app, sign in, and they return
-(re-clone a project's code from its GitHub URL if the local folder is gone).
+projects/tabs sync. From then on, signing in on any device pulls your setup
+down (clone a project's code from its GitHub URL if the local folder isn't on
+that machine yet).
+
+> What syncs is the **metadata** — your project list, tasks, and tab settings.
+> Each agent's actual code is cloned from GitHub per machine, and a live,
+> mid-run agent only exists on the machine it's running on.
 
 ---
 

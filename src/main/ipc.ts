@@ -149,9 +149,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     await shell.openExternal(url)
   })
 
-  // Clone a GitHub repo locally — used to restore a project's code after a
-  // laptop reset (the repo URL comes back from Supabase; the files come back
-  // from GitHub). Clones into <userData>/repos/<name>.
+  // Clone a GitHub repo locally — used to materialise a project's code on a
+  // machine that doesn't have it yet (the repo URL comes back from Supabase;
+  // the files come back from GitHub). Clones into <userData>/repos/<name>.
   ipcMain.handle(IPC.cloneRepo, async (_e, githubUrl: string, name: string): Promise<string> => {
     const reposDir = join(app.getPath('userData'), 'repos')
     await mkdir(reposDir, { recursive: true })

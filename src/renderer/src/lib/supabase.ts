@@ -5,7 +5,7 @@ import { createClient, type Session, type SupabaseClient } from '@supabase/supab
  *
  * The app is local-first: if no Supabase keys are configured it runs entirely
  * offline and this module is inert. When keys ARE present, this gives us cloud
- * login (so projects/tabs survive a laptop reset) using a desktop-friendly
+ * login (so projects/tabs follow the user across devices) using a desktop-friendly
  * PKCE OAuth flow: we open GitHub in the real browser, GitHub redirects to our
  * custom agentfleet:// scheme, the main process forwards that back, and we
  * exchange the code for a session here.

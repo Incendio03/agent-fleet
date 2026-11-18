@@ -9,8 +9,8 @@ import type { Project, Tab } from '@shared/types'
  *
  * This is the on-disk source of truth the app always reads/writes, so it works
  * fully offline. When Supabase is configured, the renderer mirrors this up to
- * the cloud (and pulls it back down after a laptop reset). Keeping a local JSON
- * file means the app never blocks on the network.
+ * the cloud (and pulls it back down on whatever device you sign in from).
+ * Keeping a local JSON file means the app never blocks on the network.
  */
 interface StoreData {
   projects: Project[]
