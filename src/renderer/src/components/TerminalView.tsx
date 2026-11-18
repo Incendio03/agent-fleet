@@ -48,23 +48,37 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
     // Keystrokes -> backend -> agent's stdin.
     const inputDisposable = term.onData((data) => window.fleet.sendInput(tabId, data))
 
-    // Initial fit once layout settles, then tell the PTY our real size.
+    // Fit to the container, then tell the PTY our real size. Skipped while
+    // hidden (display:none measures as 0 and would send a bogus size).
+    let lastSent = ''
     const doFit = (): void => {
+      if (!host.offsetWidth || !host.offsetHeight) return
       try {
         fit.fit()
-        window.fleet.resize(tabId, term.cols, term.rows)
+        const size = `${term.cols}x${term.rows}`
+        if (size !== lastSent) {
+          lastSent = size
+          window.fleet.resize(tabId, term.cols, term.rows)
+        }
       } catch {
         /* host not measurable yet */
       }
     }
     const raf = requestAnimationFrame(doFit)
 
-    // Refit whenever the container resizes.
-    const ro = new ResizeObserver(() => doFit())
+    // Refit when the container resizes — debounced, so a drag (e.g. the
+    // browser splitter) sends ONE final size. Every resize makes Claude Code
+    // redraw its whole screen; a burst of them leaves half-drawn frames.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timer)
+      timer = setTimeout(doFit, 150)
+    })
     ro.observe(host)
 
     return () => {
       cancelAnimationFrame(raf)
+      clearTimeout(timer)
       ro.disconnect()
       inputDisposable.dispose()
       imageLinks.dispose()

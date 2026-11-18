@@ -24,6 +24,12 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-11-18
+### Fixed
+- Garbled terminal (prompt box drawn mid-screen) after resizing: terminal resizes
+  are now debounced so Claude Code redraws once at the final size, and hidden tabs
+  no longer send bogus sizes.
+
 ## [0.3.0] — 2026-11-18
 ### Added
 - **Side browser panel** (one per window, toggle with 🌐 in the tab bar, resizable
