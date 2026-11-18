@@ -91,19 +91,29 @@ Env lives in `.env` (git-ignored); see `.env.example`. Required for cloud:
 - **Windows machine**, `claude` 2.1.327 (supports --model/--effort/--permission-mode/
   --session-id/--resume/--continue). node-pty ships prebuilt binaries (no build tools).
 
-## Current status (as of v0.2.2, 2026-11-18)
-Working: app builds/runs, projects persist, agent/role tabs, Supabase login (tested,
-works), cloud sync wiring, session-resume feature (built, flags verified present).
-Recently fixed: blank terminal after restart (0.2.1, liveTabIds); "Project not found"
-on tab create for cloud-synced projects (0.2.2, cloud restore now persists to the
-local store via store:import).
+## Current status (as of v0.4.0, 2026-11-19)
+Working: app builds/runs, projects persist, agent/role tabs, Supabase login, cloud
+sync, session resume (used repeatedly while self-hosting; agents come back with
+memory), tab persistence across restarts, splash screen.
+Added in 0.3–0.4 (see CHANGELOG): side panel (Browser with Annotate + zoom, Fleet
+board, agent Messages), image viewer, edit projects/agents, named agents + team
+prompt (team.ts), agent/model/effort switcher + Codex support (agents.ts), Settings
+→ Agents (sign-in status/login/logout), chat-style Composer with attachments.
+
+Gotchas learned:
+- Main-process/preload changes need a FULL app restart; renderer changes hot-reload,
+  but code that runs at terminal creation needs the terminal recreated.
+- The app's agents run inside the app under development; restarting it kills them.
+- Windows: `where codex` lists npm's extensionless shell script first (error 193);
+  use `resolveCommand` in agents.ts (prefers .exe, runs npm .cmd shims via node).
+- Screenshots on the clipboard aren't reliably exposed to paste events; Ctrl+V
+  checks the OS clipboard via a sync IPC (clipboard:hasImage).
 
 ## Open threads / next steps (START HERE)
-1. **Verify tab persistence end to end.** Launch an agent tab, close/reopen the app,
-   confirm it comes back (now that restored tabs show the Resume overlay and are
-   persisted locally). Needs a real run-through.
-2. **Test session-resume end to end.** Launch an agent, give it a memorable fact,
-   `/exit` it (or quit app), click "Resume agent", confirm it recalls the fact.
+1. **Safe window reload (Ctrl+R).** Keep agents running in main while the renderer
+   reloads: buffer recent PTY output in main and report live tabs on init.
+2. **Codex parity.** Codex tabs resume via `codex resume --last` (can pick another
+   Codex tab's session in the same folder) and have no named sessions/messaging.
 3. **Deployment (deferred until stable).** Package with electron-builder; add
    electron-updater + GitHub Releases for auto-update (install once, self-updates).
    SemVer/CHANGELOG/tags are already in place to support this.

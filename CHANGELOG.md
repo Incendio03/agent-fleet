@@ -23,6 +23,8 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+
+## [0.4.0] — 2026-11-19
 ### Added
 - **Chat-style message box** under each agent's terminal: normal text editing
   (new lines with Shift+Enter, select all, copy/paste, undo), Enter sends the
