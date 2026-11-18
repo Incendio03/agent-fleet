@@ -13,6 +13,7 @@ export function ProjectSidebar({ onNewProject }: { onNewProject: () => void }): 
     <aside className="sidebar">
       <div className="sidebar-header">
         <span className="brand">⚓ Agent Fleet</span>
+        <span className="version" title="App version">v{__APP_VERSION__}</span>
       </div>
 
       <div className="project-list">
