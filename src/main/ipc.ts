@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import {
   IPC,
@@ -95,6 +96,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       permissionMode: opts.permissionMode,
       branch,
       worktreePath,
+      // Stable id used for --session-id now and --resume later.
+      sessionId: randomUUID(),
       status: 'idle',
       createdAt: Date.now()
     }
@@ -102,6 +105,22 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
     // Spawn the agent. Start at a sane default size; UI resizes immediately.
     await sessionManager.spawn({ tab, cols: 80, rows: 24 })
+    return tab
+  })
+
+  // Re-attach a tab's saved Claude conversation (resume after it stopped).
+  ipcMain.handle(IPC.tabResume, async (_e, tabId: string): Promise<Tab> => {
+    const tabs = await store.listTabs()
+    const tab = tabs.find((t) => t.id === tabId)
+    if (!tab) throw new Error('Tab not found')
+    if (sessionManager.isRunning(tabId)) return tab // already live
+    if (!existsSync(tab.worktreePath)) {
+      throw new Error(
+        `This tab's worktree folder isn't on this machine (${tab.worktreePath}). ` +
+          `Its code/conversation live where it was created.`
+      )
+    }
+    await sessionManager.spawn({ tab, cols: 80, rows: 24, resume: true })
     return tab
   })
 

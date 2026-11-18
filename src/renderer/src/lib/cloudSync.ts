@@ -39,6 +39,7 @@ function tabToRow(t: Tab): Record<string, unknown> {
     permission_mode: t.permissionMode,
     branch: t.branch,
     worktree_path: t.worktreePath,
+    session_id: t.sessionId,
     status: t.status,
     exit_code: t.exitCode ?? null
   }
@@ -54,6 +55,7 @@ function rowToTab(r: Record<string, any>): Tab {
     permissionMode: r.permission_mode,
     branch: r.branch,
     worktreePath: r.worktree_path,
+    sessionId: r.session_id ?? '',
     status: r.status,
     exitCode: r.exit_code ?? undefined,
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now()

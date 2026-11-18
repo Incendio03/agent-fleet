@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -87,6 +88,28 @@ class Store {
     await this.ensureLoaded()
     this.data.tabs = this.data.tabs.filter((t) => t.id !== tabId)
     await this.persist()
+  }
+
+  /**
+   * On startup no agent processes exist yet, so any tab persisted as
+   * 'running'/'starting' is stale. Reset those to 'idle' so the UI shows them
+   * as resumable rather than falsely live.
+   */
+  async markAllStopped(): Promise<void> {
+    await this.ensureLoaded()
+    let changed = false
+    for (const t of this.data.tabs) {
+      if (t.status === 'running' || t.status === 'starting') {
+        t.status = 'idle'
+        changed = true
+      }
+      // Backfill a session id for tabs created before session-resume existed.
+      if (!t.sessionId) {
+        t.sessionId = randomUUID()
+        changed = true
+      }
+    }
+    if (changed) await this.persist()
   }
 }
 

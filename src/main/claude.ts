@@ -19,6 +19,9 @@ export interface ClaudeCapabilities {
   supportsModel: boolean
   supportsEffort: boolean
   supportsPermissionMode: boolean
+  supportsSessionId: boolean
+  supportsResume: boolean
+  supportsContinue: boolean
   helpText: string
 }
 
@@ -61,6 +64,9 @@ export async function detectClaude(): Promise<ClaudeCapabilities> {
     supportsModel: /--model\b/.test(helpText),
     supportsEffort: /--effort\b/.test(helpText),
     supportsPermissionMode: /--permission-mode\b/.test(helpText),
+    supportsSessionId: /--session-id\b/.test(helpText),
+    supportsResume: /--resume\b/.test(helpText),
+    supportsContinue: /--continue\b/.test(helpText),
     helpText
   }
   return cached
@@ -71,12 +77,23 @@ export interface SpawnCommand {
   args: string[]
 }
 
+export interface BuildOptions extends CreateTabOptions {
+  /** Stable Claude session id for this tab (for --session-id / --resume). */
+  sessionId: string
+  /** When true, re-attach the saved conversation instead of starting fresh. */
+  resume?: boolean
+}
+
 /**
- * Builds the claude invocation for a tab. The task prompt is passed as a
- * positional arg, which starts the interactive TUI already working on it —
- * exactly what we want for a live, watchable terminal tab.
+ * Builds the claude invocation for a tab.
+ *
+ * Fresh launch: pass the task as a positional prompt (starts the interactive
+ * TUI already working on it) and tag it with `--session-id` so it can be
+ * resumed later. Resume: re-attach the saved conversation with `--resume`
+ * (or `--continue` as a fallback) and DON'T re-send the prompt — the agent
+ * picks up its full prior memory.
  */
-export async function buildClaudeCommand(opts: CreateTabOptions): Promise<SpawnCommand> {
+export async function buildClaudeCommand(opts: BuildOptions): Promise<SpawnCommand> {
   const caps = await detectClaude()
   const args: string[] = []
 
@@ -84,8 +101,20 @@ export async function buildClaudeCommand(opts: CreateTabOptions): Promise<SpawnC
   if (caps.supportsEffort) args.push('--effort', opts.effort)
   if (caps.supportsPermissionMode) args.push('--permission-mode', opts.permissionMode)
 
-  // Seed the session with the task. Keep it last (positional prompt).
-  if (opts.task.trim()) args.push(opts.task.trim())
+  if (opts.resume) {
+    // Re-attach the existing conversation. Prefer an explicit session id.
+    if (caps.supportsResume && caps.supportsSessionId) {
+      args.push('--resume', opts.sessionId)
+    } else if (caps.supportsContinue) {
+      // Each tab has its own worktree (cwd), so --continue resumes the right one.
+      args.push('--continue')
+    }
+    // No positional prompt on resume — keep the saved context intact.
+  } else {
+    // Fresh session: tag it so we can resume it later.
+    if (caps.supportsSessionId) args.push('--session-id', opts.sessionId)
+    if (opts.task.trim()) args.push(opts.task.trim())
+  }
 
   return { file: caps.path, args }
 }

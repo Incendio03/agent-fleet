@@ -26,8 +26,13 @@ export default function App(): JSX.Element {
     void init()
   }, [init])
 
+  const resumeTab = useStore((s) => s.resumeTab)
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
   const projectTabs = tabs.filter((t) => t.projectId === activeProjectId)
+  const activeTab = projectTabs.find((t) => t.id === activeTabId) ?? null
+  // A tab whose agent isn't live can be resumed (restores its conversation).
+  const canResume =
+    activeTab != null && activeTab.status !== 'running' && activeTab.status !== 'starting'
 
   return (
     <div className="app">
@@ -58,6 +63,25 @@ export default function App(): JSX.Element {
                 projectTabs.map((t) => (
                   <TerminalView key={t.id} tabId={t.id} active={t.id === activeTabId} />
                 ))
+              )}
+
+              {canResume && activeTab && (
+                <div className="resume-overlay">
+                  <div className="resume-card">
+                    <div className="resume-title">Agent not running</div>
+                    <div className="resume-sub">
+                      {activeTab.status === 'exited'
+                        ? 'This agent finished. '
+                        : activeTab.status === 'error'
+                          ? 'This agent stopped with an error. '
+                          : 'This tab was restored from a previous session. '}
+                      Resume to re-open its conversation (with full memory) in the same branch.
+                    </div>
+                    <button className="btn primary" onClick={() => void resumeTab(activeTab.id)}>
+                      ▶ Resume agent
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </>

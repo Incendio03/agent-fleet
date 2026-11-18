@@ -33,6 +33,7 @@ interface FleetState {
   createProject: (opts: CreateProjectOptions) => Promise<void>
   removeProject: (projectId: string) => Promise<void>
   createTab: (opts: CreateTabOptions) => Promise<void>
+  resumeTab: (tabId: string) => Promise<void>
   closeTab: (tabId: string, deleteBranch?: boolean) => Promise<void>
   setTabStatus: (tabId: string, status: TabStatus) => void
   setError: (msg: string | null) => void
@@ -115,6 +116,15 @@ export const useStore = create<FleetState>((set, get) => ({
     } catch (err) {
       set({ error: (err as Error).message })
       throw err
+    }
+  },
+
+  resumeTab: async (tabId) => {
+    try {
+      await window.fleet.resumeTab(tabId)
+      // Status transitions (starting -> running) arrive via the status event.
+    } catch (err) {
+      set({ error: (err as Error).message })
     }
   },
 

@@ -26,6 +26,7 @@ const api = {
   // --- Tabs ---
   listTabs: (projectId?: string): Promise<Tab[]> => ipcRenderer.invoke(IPC.tabList, projectId),
   createTab: (opts: CreateTabOptions): Promise<Tab> => ipcRenderer.invoke(IPC.tabCreate, opts),
+  resumeTab: (tabId: string): Promise<Tab> => ipcRenderer.invoke(IPC.tabResume, tabId),
   closeTab: (tabId: string, deleteBranch?: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.tabClose, tabId, deleteBranch),
 

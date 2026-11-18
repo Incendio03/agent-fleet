@@ -228,6 +228,28 @@ body {
   padding: 6px 8px;
 }
 
+/* ---- Resume overlay ---- */
+.resume-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 13, 16, 0.78);
+  backdrop-filter: blur(2px);
+  z-index: 10;
+}
+.resume-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px 24px;
+  max-width: 420px;
+  text-align: center;
+}
+.resume-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.resume-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+
 /* ---- Modals ---- */
 .modal-backdrop {
   position: fixed; inset: 0;

@@ -42,6 +42,12 @@ export interface Tab {
   branch: string
   /** Absolute path to this tab's git worktree folder. */
   worktreePath: string
+  /**
+   * Stable Claude Code session id for this tab. Assigned at creation and passed
+   * to `claude --session-id` so the conversation can later be re-attached with
+   * `claude --resume <sessionId>` — restoring the agent's full memory.
+   */
+  sessionId: string
   status: TabStatus
   /** Process exit code, once the agent process has exited. */
   exitCode?: number
@@ -74,6 +80,7 @@ export const IPC = {
   projectRemove: 'project:remove',
   tabList: 'tab:list',
   tabCreate: 'tab:create',
+  tabResume: 'tab:resume',
   tabClose: 'tab:close',
   tabInput: 'tab:input',
   tabResize: 'tab:resize',

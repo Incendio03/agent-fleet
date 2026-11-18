@@ -4,6 +4,7 @@ import { registerIpc } from './ipc'
 import { detectClaude } from './claude'
 import { sessionManager } from './sessionManager'
 import { startAuthServer, stopAuthServer } from './authServer'
+import { store } from './store'
 import { IPC } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -65,6 +66,10 @@ if (!gotLock) {
 }
 
 app.whenReady().then(async () => {
+  // No agents are alive at startup — clear any stale 'running' statuses so the
+  // UI shows persisted tabs as resumable.
+  await store.markAllStopped()
+
   registerIpc(() => mainWindow)
 
   // Loopback server that catches the GitHub/Supabase OAuth redirect.
