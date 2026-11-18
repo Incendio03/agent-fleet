@@ -23,6 +23,14 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Added
+- **"Needs you" alerts.** Claude agents launch with hooks (`--settings`) that tell
+  the app when they start working, finish, or need you (permission / input). Tabs
+  show a spinner while working, ✓ when finished unseen, ! when they need you or
+  crashed; projects show a count. Windows notification + taskbar flash when you're
+  not looking (click to jump to the agent). Badges clear when you open the tab.
+  Settings → Notifications to choose which alerts pop up.
+
 
 ## [0.5.0] — 2026-11-19
 ### Added

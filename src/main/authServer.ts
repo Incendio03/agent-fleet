@@ -1,22 +1,36 @@
 import { createServer, type Server } from 'node:http'
 
 /**
- * Tiny loopback HTTP server for the OAuth redirect.
- *
- * Desktop OAuth can't use a normal web redirect (there's no web server) and
- * custom URL schemes (agentfleet://) are unreliable on Windows, especially in
- * dev. The battle-tested approach is a loopback redirect: we listen on
- * 127.0.0.1:<port>, point Supabase's redirect at it, and capture the ?code=...
- * the moment the browser lands here. Works identically in dev and when packaged.
+ * Tiny loopback HTTP server on 127.0.0.1:8923, used for:
+ *  - the OAuth redirect (GET /callback). Desktop OAuth can't use a normal web
+ *    redirect and custom URL schemes (agentfleet://) are unreliable on Windows,
+ *    so we listen here and capture the ?code=... when the browser lands.
+ *  - agent hooks (POST /hook/...), for "needs you" alerts (see attention.ts).
  */
 const PORT = 8923
+export const HOOK_PORT = PORT
 export const AUTH_REDIRECT_URL = `http://localhost:${PORT}/callback`
 
 let server: Server | null = null
 
-export function startAuthServer(onCallback: (url: string) => void): void {
+export function startAuthServer(
+  onCallback: (url: string) => void,
+  onHook?: (path: string, body: string) => void
+): void {
   if (server) return
   server = createServer((req, res) => {
+    if (req.method === 'POST' && req.url?.startsWith('/hook/') && onHook) {
+      let body = ''
+      req.on('data', (c) => {
+        if (body.length < 64_000) body += c
+      })
+      req.on('end', () => {
+        onHook(req.url!, body)
+        res.writeHead(204)
+        res.end()
+      })
+      return
+    }
     if (req.url && req.url.startsWith('/callback')) {
       onCallback(`http://localhost:${PORT}${req.url}`)
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })

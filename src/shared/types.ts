@@ -115,6 +115,15 @@ export interface UpdateTabOptions {
   permissionMode: PermissionMode
 }
 
+/** What an agent just did, reported by its hooks (see main/attention.ts). */
+export interface TabActivity {
+  tabId: string
+  /** working = started a turn; done = finished its turn; input = needs you. */
+  kind: 'working' | 'done' | 'input'
+  /** e.g. "Claude needs your permission to use Bash". */
+  message?: string
+}
+
 /** Install + sign-in state of an agent CLI (from its own status command). */
 export interface AgentStatus {
   id: AgentKind
@@ -181,6 +190,8 @@ export const IPC = {
   tabData: 'tab:data', // terminal output chunk
   tabExit: 'tab:exit', // process exited
   tabStatus: 'tab:status', // status changed
+  tabActivity: 'tab:activity', // agent hook event (working / done / needs input)
+  windowFocus: 'app:focusWindow', // bring the window to the front (notification click)
   browserZoom: 'browser:zoom', // side-browser zoom changed (percent)
   browserOpenTab: 'browser:openTab', // a page asked for a new window -> open a browser tab
   browserShortcut: 'browser:shortcut', // Ctrl+T / Ctrl+W pressed inside a page

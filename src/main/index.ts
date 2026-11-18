@@ -1,9 +1,10 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { registerIpc } from './ipc'
 import { detectClaude } from './claude'
 import { sessionManager } from './sessionManager'
 import { startAuthServer, stopAuthServer } from './authServer'
+import { parseHook } from './attention'
 import { store } from './store'
 import { IPC } from '@shared/types'
 
@@ -46,6 +47,7 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
   mainWindow.on('closed', () => { mainWindow = null })
+  mainWindow.on('focus', () => mainWindow?.flashFrame(false))
 
   // No File/Edit/View menu bar. Copy/paste in inputs and terminals don't need
   // it; keep the DevTools shortcut in dev only, since the menu provided that.
@@ -131,7 +133,22 @@ app.whenReady().then(async () => {
   registerIpc(() => mainWindow)
 
   // Loopback server that catches the GitHub/Supabase OAuth redirect.
-  startAuthServer((url) => forwardAuthCallback(url))
+  startAuthServer(
+    (url) => forwardAuthCallback(url),
+    (path, body) => {
+      const activity = parseHook(path, body)
+      if (!activity || !mainWindow || mainWindow.isDestroyed()) return
+      mainWindow.webContents.send(IPC.tabActivity, activity)
+      // Flash the taskbar button when an agent wants you and the app isn't focused.
+      if (activity.kind !== 'working' && !mainWindow.isFocused()) mainWindow.flashFrame(true)
+    }
+  )
+  ipcMain.on(IPC.windowFocus, () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  })
 
   // Warm up claude detection so the first tab spawns instantly and we can warn
   // early if the CLI isn't found.

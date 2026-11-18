@@ -1013,3 +1013,35 @@ body {
 /* Collapsed rail never shows the full-width account bar. */
 .sidebar.collapsed .authbar:not(.compact) { display: none; }
 .rail-note { color: var(--text-dim); font-size: 12px; padding: 8px 0; }
+
+/* ---- "Needs you" indicators ---- */
+.tab-badge {
+  width: 15px; height: 15px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #0d0d10; flex-shrink: 0;
+}
+.tab-badge.input { background: var(--yellow); animation: pulse 1.4s infinite; }
+.tab-badge.error { background: var(--red); }
+.tab-badge.done { background: var(--green); }
+.tab-spinner { margin: 0; }
+.tab-status.input { color: var(--yellow); }
+.tab-status.error { color: var(--red); }
+.tab-status.done { color: var(--green); }
+.attention-pill {
+  margin-left: auto; min-width: 16px; height: 16px; padding: 0 5px; box-sizing: border-box;
+  border-radius: 8px; background: var(--green); color: #0d0d10;
+  font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+}
+.attention-pill.urgent { background: var(--yellow); }
+.badge-count {
+  position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px;
+  box-sizing: border-box; border-radius: 8px; background: var(--green); color: #0d0d10;
+  border: 2px solid var(--bg-elev); font-size: 9px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.badge-count.urgent { background: var(--yellow); }
+.settings-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.settings-toggle input { margin-top: 3px; width: auto; }
+.settings-toggle.disabled { opacity: 0.5; }
+.settings-toggle-title { font-size: 13px; color: var(--text); }
+.settings-toggle-hint { font-size: 12px; color: var(--text-dim); margin-top: 2px; }

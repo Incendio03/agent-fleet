@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events'
 import * as pty from 'node-pty'
 import type { IPty } from 'node-pty'
 import type { Tab, TabStatus } from '@shared/types'
-import { buildAgentCommand } from './agents'
+import { buildAgentCommand, agentOf } from './agents'
+import { hookSettingsFile } from './attention'
 
 /**
  * Owns the live pseudo-terminal (PTY) process behind every tab.
@@ -49,7 +50,10 @@ export class SessionManager extends EventEmitter {
 
     this.setStatus(tab.id, 'starting')
 
+    // Activity hooks ("needs you" alerts) — Claude Code only; never block launch on them.
+    const settingsFile = agentOf(tab) === 'claude' ? await hookSettingsFile(tab.id).catch(() => undefined) : undefined
     const { file, args } = await buildAgentCommand(tab, {
+      settingsFile,
       resume,
       sessionName: team?.sessionName,
       appendSystemPrompt: team?.prompt

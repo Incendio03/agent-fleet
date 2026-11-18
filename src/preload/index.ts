@@ -7,6 +7,7 @@ import {
   type AgentStatus,
   type CreateTabOptions,
   type FleetMessage,
+  type TabActivity,
   type UpdateProjectOptions,
   type UpdateTabOptions,
   type Project,
@@ -128,6 +129,12 @@ const api = {
     ipcRenderer.on(IPC.tabStatus, h)
     return () => ipcRenderer.removeListener(IPC.tabStatus, h)
   },
+  onTabActivity: (cb: (activity: TabActivity) => void): (() => void) => {
+    const h = (_e: unknown, a: TabActivity): void => cb(a)
+    ipcRenderer.on(IPC.tabActivity, h)
+    return () => ipcRenderer.removeListener(IPC.tabActivity, h)
+  },
+  focusWindow: (): void => ipcRenderer.send(IPC.windowFocus),
   onTabExit: (cb: (tabId: string, exitCode: number) => void): (() => void) => {
     const h = (_e: unknown, tabId: string, exitCode: number): void => cb(tabId, exitCode)
     ipcRenderer.on(IPC.tabExit, h)

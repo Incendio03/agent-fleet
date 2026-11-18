@@ -28,6 +28,8 @@ export function TabBar({
   const activeTabId = useStore((s) => s.activeTabId)
   const selectTab = useStore((s) => s.selectTab)
   const closeTab = useStore((s) => s.closeTab)
+  const busy = useStore((s) => s.busy)
+  const attention = useStore((s) => s.attention)
 
   const onClose = async (tab: Tab): Promise<void> => {
     const isolated = project != null && tab.worktreePath !== project.localPath
@@ -48,9 +50,19 @@ export function TabBar({
           onContextMenu={(e) => { e.preventDefault(); onEditTab(t.id) }}
           title={`${t.branch} · ${t.model} · ${t.permissionMode}`}
         >
-          <span className={`status-dot ${t.status}`} />
+          <TabIndicator status={t.status} busy={!!busy[t.id]} attention={attention[t.id]?.kind} />
           <span className="tab-title">{t.title}</span>
-          <span className="tab-status">{STATUS_LABEL[t.status]}</span>
+          <span className={`tab-status ${attention[t.id]?.kind ?? ''}`} title={attention[t.id]?.message}>
+            {attention[t.id]?.kind === 'input'
+              ? 'needs you'
+              : attention[t.id]?.kind === 'error'
+                ? 'error'
+                : busy[t.id]
+                  ? 'working'
+                  : attention[t.id]?.kind === 'done'
+                    ? 'done'
+                    : STATUS_LABEL[t.status]}
+          </span>
           <button className="tab-edit" title="Edit agent" onClick={(e) => { e.stopPropagation(); onEditTab(t.id) }}>⋮</button>
           <button className="tab-close" onClick={(e) => { e.stopPropagation(); void onClose(t) }}>×</button>
         </div>
@@ -66,4 +78,21 @@ export function TabBar({
       </button>
     </div>
   )
+}
+
+/** Tab icon: ! needs you, ✓ finished unseen, spinner working, else the status dot. */
+function TabIndicator({
+  status,
+  busy,
+  attention
+}: {
+  status: TabStatus
+  busy: boolean
+  attention?: 'done' | 'input' | 'error'
+}): JSX.Element {
+  if (attention === 'input') return <span className="tab-badge input" title="Needs you">!</span>
+  if (attention === 'error') return <span className="tab-badge error" title="Stopped with an error">!</span>
+  if (busy) return <span className="spinner sm tab-spinner" title="Working" />
+  if (attention === 'done') return <span className="tab-badge done" title="Finished">✓</span>
+  return <span className={`status-dot ${status}`} />
 }

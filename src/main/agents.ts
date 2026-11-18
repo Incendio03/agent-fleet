@@ -192,7 +192,7 @@ export async function agentLogout(id: AgentKind): Promise<void> {
 /** Build the spawn command for a tab with whichever agent CLI it uses. */
 export async function buildAgentCommand(
   tab: Tab,
-  opts: { resume?: boolean; sessionName?: string; appendSystemPrompt?: string }
+  opts: { resume?: boolean; sessionName?: string; appendSystemPrompt?: string; settingsFile?: string }
 ): Promise<SpawnCommand> {
   if (agentOf(tab) === 'codex') {
     const cmd = await resolveCommand('codex')
@@ -218,6 +218,7 @@ export async function buildAgentCommand(
     sessionId: tab.sessionId,
     resume: opts.resume,
     sessionName: opts.sessionName,
-    appendSystemPrompt: opts.appendSystemPrompt
+    appendSystemPrompt: opts.appendSystemPrompt,
+    settingsFile: opts.settingsFile
   })
 }

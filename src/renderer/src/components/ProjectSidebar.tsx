@@ -54,6 +54,7 @@ export function ProjectSidebar({
   const activeProjectId = useStore((s) => s.activeProjectId)
   const selectProject = useStore((s) => s.selectProject)
   const removeProject = useStore((s) => s.removeProject)
+  const attention = useStore((s) => s.attention)
   const [showSettings, setShowSettings] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === '1' } catch { return false }
@@ -92,6 +93,8 @@ export function ProjectSidebar({
         {projects.map((p) => {
           const count = tabs.filter((t) => t.projectId === p.id).length
           const running = tabs.filter((t) => t.projectId === p.id && t.status === 'running').length
+          const waiting = tabs.filter((t) => t.projectId === p.id && attention[t.id]).length
+          const urgent = tabs.some((t) => t.projectId === p.id && attention[t.id] && attention[t.id].kind !== 'done')
           const tip = `${p.name}\n${count} tab${count === 1 ? '' : 's'}${running ? ` · ${running} running` : ''}\n${p.localPath}`
           return (
             <div
@@ -105,6 +108,7 @@ export function ProjectSidebar({
                 <span className="project-badge" style={{ background: badgeColor(p.id) }}>
                   {initials(p.name)}
                   {running > 0 && <span className="badge-dot" />}
+                  {waiting > 0 && <span className={`badge-count ${urgent ? 'urgent' : ''}`}>{waiting}</span>}
                 </span>
               ) : (
                 <>
@@ -112,6 +116,11 @@ export function ProjectSidebar({
                   <div className="project-meta">
                     {count} tab{count === 1 ? '' : 's'}
                     {running > 0 && <span className="dot running" title={`${running} running`} />}
+                    {waiting > 0 && (
+                      <span className={`attention-pill ${urgent ? 'urgent' : ''}`} title={`${waiting} agent${waiting === 1 ? '' : 's'} want${waiting === 1 ? 's' : ''} your attention`}>
+                        {waiting}
+                      </span>
+                    )}
                   </div>
                   <button
                     className="project-edit"

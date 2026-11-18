@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { AgentsSettings } from './AgentsSettings'
+import { NotificationSettings } from './NotificationSettings'
 
 /** Settings sections. Add new ones here (id, label, component). */
-const SECTIONS = [{ id: 'agents', label: 'Agents', render: () => <AgentsSettings /> }] as const
+const SECTIONS = [
+  { id: 'agents', label: 'Agents', render: () => <AgentsSettings /> },
+  { id: 'notifications', label: 'Notifications', render: () => <NotificationSettings /> }
+] as const
 
 type SectionId = (typeof SECTIONS)[number]['id']
 

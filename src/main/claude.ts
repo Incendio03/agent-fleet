@@ -24,6 +24,7 @@ export interface ClaudeCapabilities {
   supportsContinue: boolean
   supportsName: boolean
   supportsAppendSystemPrompt: boolean
+  supportsSettings: boolean
   helpText: string
 }
 
@@ -71,6 +72,7 @@ export async function detectClaude(): Promise<ClaudeCapabilities> {
     supportsContinue: /--continue\b/.test(helpText),
     supportsName: /--name\b/.test(helpText),
     supportsAppendSystemPrompt: /--append-system-prompt\b/.test(helpText),
+    supportsSettings: /--settings\b/.test(helpText),
     helpText
   }
   return cached
@@ -91,6 +93,8 @@ export interface BuildOptions extends Omit<CreateTabOptions, 'isolate'> {
   sessionName?: string
   /** Extra system-prompt text (role, teammates, board) via --append-system-prompt. */
   appendSystemPrompt?: string
+  /** Extra settings file (our activity hooks) via --settings. */
+  settingsFile?: string
 }
 
 /**
@@ -110,6 +114,7 @@ export async function buildClaudeCommand(opts: BuildOptions): Promise<SpawnComma
   if (caps.supportsEffort) args.push('--effort', opts.effort)
   if (caps.supportsPermissionMode) args.push('--permission-mode', opts.permissionMode)
   if (caps.supportsName && opts.sessionName) args.push('--name', opts.sessionName)
+  if (caps.supportsSettings && opts.settingsFile) args.push('--settings', opts.settingsFile)
   if (caps.supportsAppendSystemPrompt && opts.appendSystemPrompt) {
     args.push('--append-system-prompt', opts.appendSystemPrompt)
   }

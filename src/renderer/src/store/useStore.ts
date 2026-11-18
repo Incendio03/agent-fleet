@@ -1,5 +1,7 @@
 import { create } from 'zustand'
+import { getNotifyPrefs, showNotification } from '../lib/notify'
 import type {
+  TabActivity,
   AgentInfo,
   CreateProjectOptions,
   CreateTabOptions,
@@ -35,6 +37,12 @@ interface FleetState {
   liveTabIds: Set<string>
   loading: boolean
   error: string | null
+  /** Tabs whose agent is mid-turn (between prompt and finish), from its hooks. */
+  busy: Record<string, boolean>
+  /** Tabs that want you: finished while you weren't looking, need input, or errored. */
+  attention: Record<string, { kind: 'done' | 'input' | 'error'; message?: string; ts: number }>
+  onActivity: (a: TabActivity) => void
+  clearAttention: (tabId: string) => void
   /** Agent CLIs detected on this machine (with their models/efforts). */
   agents: AgentInfo[]
   /** Image currently shown in the full-window viewer, if any. */
@@ -69,6 +77,8 @@ export const useStore = create<FleetState>((set, get) => ({
   loading: true,
   error: null,
   viewer: null,
+  busy: {},
+  attention: {},
   agents: [],
 
   openImage: async (path) => {
@@ -92,6 +102,12 @@ export const useStore = create<FleetState>((set, get) => ({
       void window.fleet.listAgents().then((agents) => set({ agents })).catch(() => {})
       // Subscribe once to live backend events that mutate tab state.
       window.fleet.onTabStatus((tabId, status) => get().setTabStatus(tabId, status))
+      window.fleet.onTabActivity?.((a) => get().onActivity(a))
+      // Coming back to the window counts as seeing the current tab.
+      window.addEventListener('focus', () => {
+        const id = get().activeTabId
+        if (id) get().clearAttention(id)
+      })
       window.fleet.onTabExit((tabId, exitCode) =>
         set((s) => ({
           tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, exitCode } : t))
@@ -113,9 +129,49 @@ export const useStore = create<FleetState>((set, get) => ({
   selectProject: (projectId) => {
     const firstTab = get().tabs.find((t) => t.projectId === projectId)
     set({ activeProjectId: projectId, activeTabId: firstTab?.id ?? null })
+    if (firstTab) get().clearAttention(firstTab.id)
   },
 
-  selectTab: (tabId) => set({ activeTabId: tabId }),
+  selectTab: (tabId) => {
+    set({ activeTabId: tabId })
+    get().clearAttention(tabId) // you're looking at it now
+  },
+
+  clearAttention: (tabId) =>
+    set((s) => {
+      if (!s.attention[tabId]) return {}
+      const attention = { ...s.attention }
+      delete attention[tabId]
+      return { attention }
+    }),
+
+  onActivity: ({ tabId, kind, message }) => {
+    const s = get()
+    const tab = s.tabs.find((t) => t.id === tabId)
+    if (!tab) return
+    if (kind === 'working') {
+      set({ busy: { ...s.busy, [tabId]: true } })
+      s.clearAttention(tabId)
+      return
+    }
+    // done: finished its turn. input: blocked on you (still mid-turn).
+    // Claude also sends an idle "waiting for your input" reminder ~a minute
+    // after finishing; that's already covered by "done", so skip it.
+    if (kind === 'input' && !s.busy[tabId]) return
+    if (kind === 'done') set({ busy: { ...get().busy, [tabId]: false } })
+    const viewing = s.activeTabId === tabId && document.hasFocus()
+    if (viewing) return // you saw it happen
+    set({ attention: { ...get().attention, [tabId]: { kind, message, ts: Date.now() } } })
+    const prefs = getNotifyPrefs()
+    if (!prefs.enabled || (kind === 'done' ? !prefs.done : !prefs.input)) return
+    const project = s.projects.find((p) => p.id === tab.projectId)
+    const title = kind === 'done' ? `${tab.title} finished` : `${tab.title} needs you`
+    const body = (kind === 'input' && message) || (kind === 'done' ? 'Ready for your next message.' : 'Waiting for your input.')
+    showNotification(project ? `${title} · ${project.name}` : title, body, () => {
+      get().selectProject(tab.projectId)
+      get().selectTab(tab.id)
+    })
+  },
 
   createProject: async (opts) => {
     try {
@@ -229,9 +285,17 @@ export const useStore = create<FleetState>((set, get) => ({
       // (exited/error/idle) means no process, so it becomes resumable.
       if (status === 'running' || status === 'starting') live.add(tabId)
       else live.delete(tabId)
+      const stopped = status === 'exited' || status === 'error'
+      // An agent that crashed while you weren't looking wants attention too.
+      const attention =
+        status === 'error' && !(s.activeTabId === tabId && document.hasFocus())
+          ? { ...s.attention, [tabId]: { kind: 'error' as const, ts: Date.now() } }
+          : s.attention
       return {
         tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, status } : t)),
-        liveTabIds: live
+        liveTabIds: live,
+        busy: stopped ? { ...s.busy, [tabId]: false } : s.busy,
+        attention
       }
     }),
 
