@@ -7,7 +7,7 @@ import { TerminalView } from './components/TerminalView'
 import { NewProjectDialog } from './components/NewProjectDialog'
 import { NewTabDialog } from './components/NewTabDialog'
 import { SidePanel } from './components/SidePanel'
-import { AgentBar } from './components/AgentBar'
+import { Composer } from './components/Composer'
 import { ImageViewer } from './components/ImageViewer'
 import { SplashScreen } from './components/SplashScreen'
 
@@ -107,7 +107,7 @@ export default function App(): JSX.Element {
                 // Mount every tab's terminal; hide all but the active one so
                 // background agents keep running and scrollback is preserved.
                 projectTabs.map((t) => (
-                  <TerminalView key={t.id} tabId={t.id} active={t.id === activeTabId} />
+                  <TerminalView key={t.id} tabId={t.id} active={t.id === activeTabId} focusOnActive={false} />
                 ))
               )}
 
@@ -131,8 +131,8 @@ export default function App(): JSX.Element {
               )}
             </div>
 
-            {/* Sits right under the terminal, next to the agent's input box. */}
-            {activeTab && <AgentBar tab={activeTab} />}
+            {/* Chat-style message box; includes the agent/model/effort bar. */}
+            {activeTab && <Composer key={activeTab.id} tab={activeTab} />}
           </>
         )}
       </main>

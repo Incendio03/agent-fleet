@@ -166,6 +166,9 @@ export const IPC = {
   cloneRepo: 'project:clone',
   storeImport: 'store:import',
   browserCapture: 'browser:capture', // screenshot a <webview> by webContentsId
+  clipboardImage: 'clipboard:image', // system clipboard image as PNG data URL (or null)
+  clipboardHasImage: 'clipboard:hasImage', // SYNC: is there an image on the OS clipboard?
+  clipboardFormats: 'clipboard:formats', // formats on the system clipboard (diagnostics)
   shotSave: 'shot:save', // save an annotated PNG into the project folder
   boardRead: 'board:read', // project's .fleet/board.md
   boardWrite: 'board:write',

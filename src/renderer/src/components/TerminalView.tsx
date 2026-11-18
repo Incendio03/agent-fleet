@@ -14,7 +14,16 @@ import { registerImageLinks } from '../lib/imageLinks'
  * never lost when switching tabs. `active` controls visibility and triggers a
  * refit when this tab comes to the foreground.
  */
-export function TerminalView({ tabId, active }: { tabId: string; active: boolean }): JSX.Element {
+export function TerminalView({
+  tabId,
+  active,
+  focusOnActive = true
+}: {
+  tabId: string
+  active: boolean
+  /** Focus the terminal when shown (agent tabs focus the message box instead). */
+  focusOnActive?: boolean
+}): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -49,6 +58,48 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
     fitRef.current = fit
     registerTerminal(tabId, term)
 
+    // Ctrl+C (or Ctrl+Shift+C) with text selected copies it instead of
+    // interrupting the agent; without a selection it goes through as usual.
+    term.attachCustomKeyEventHandler((e) => {
+      // Ctrl+V with an image on the clipboard: save it and type its path.
+      if (e.type === 'keydown' && e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'v' && window.fleet.clipboardHasImage()) {
+        e.preventDefault()
+        void pasteImageToAgent()
+        return false
+      }
+      if (e.type === 'keydown' && e.ctrlKey && e.key.toLowerCase() === 'c' && term.hasSelection()) {
+        void navigator.clipboard.writeText(term.getSelection())
+        term.clearSelection()
+        e.preventDefault()
+        return false
+      }
+      return true
+    })
+
+    // Pasting an image into the terminal: save it to the project and type its
+    // path (terminals can only paste text). Text pastes are left to xterm.
+    const pasteImageToAgent = async (): Promise<void> => {
+      const { tabs, setError } = useStore.getState()
+      const projectId = tabs.find((t) => t.id === tabId)?.projectId
+      const dataUrl = await window.fleet.readClipboardImage()
+      if (!dataUrl) return
+      if (!projectId) return setError('This terminal has no project to save the image into.')
+      try {
+        const path = await window.fleet.saveShot(projectId, dataUrl)
+        window.fleet.sendInput(tabId, `"${path}" `)
+      } catch (err) {
+        setError(`Could not paste image: ${(err as Error).message}`)
+      }
+    }
+    const onPaste = (e: ClipboardEvent): void => {
+      const data = e.clipboardData
+      if (!data || data.getData('text/plain')) return
+      e.preventDefault()
+      e.stopPropagation()
+      void pasteImageToAgent()
+    }
+    host.addEventListener('paste', onPaste, true)
+
     // Keystrokes -> backend -> agent's stdin.
     const inputDisposable = term.onData((data) => window.fleet.sendInput(tabId, data))
 
@@ -81,6 +132,7 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
       ro.disconnect()
       inputDisposable.dispose()
       imageLinks.dispose()
+      host.removeEventListener('paste', onPaste, true)
       unregisterTerminal(tabId)
       term.dispose()
       termRef.current = null
@@ -100,14 +152,14 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
         const term = termRef.current
         if (term) {
           window.fleet.resize(tabId, term.cols, term.rows)
-          term.focus()
+          if (focusOnActive) term.focus()
         }
       } catch {
         /* ignore */
       }
     })
     return () => cancelAnimationFrame(raf)
-  }, [active, tabId, isLive])
+  }, [active, tabId, isLive, focusOnActive])
 
   return <div ref={hostRef} className="terminal-host" style={{ display: active ? 'block' : 'none' }} />
 }

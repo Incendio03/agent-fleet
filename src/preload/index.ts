@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import {
   IPC,
   type CreateProjectOptions,
@@ -51,12 +51,26 @@ const api = {
   // --- Side browser ---
   captureBrowser: (webContentsId: number): Promise<string> =>
     ipcRenderer.invoke(IPC.browserCapture, webContentsId),
+  readClipboardImage: (): Promise<string | null> => ipcRenderer.invoke(IPC.clipboardImage),
+  clipboardFormats: (): Promise<string[]> => ipcRenderer.invoke(IPC.clipboardFormats),
+  /** Synchronous check, for deciding inside a Ctrl+V keydown. */
+  clipboardHasImage: (): boolean => ipcRenderer.sendSync(IPC.clipboardHasImage) === true,
   saveShot: (projectId: string, dataUrl: string): Promise<string> =>
     ipcRenderer.invoke(IPC.shotSave, projectId, dataUrl),
   onBrowserZoom: (cb: (percent: number) => void): (() => void) => {
     const h = (_e: unknown, percent: number): void => cb(percent)
     ipcRenderer.on(IPC.browserZoom, h)
     return () => ipcRenderer.removeListener(IPC.browserZoom, h)
+  },
+
+  // --- Files ---
+  /** Absolute path of a dropped/selected File (empty if it has none). */
+  pathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
   },
 
   // --- Agents ---

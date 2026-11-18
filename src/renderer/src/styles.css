@@ -702,9 +702,8 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 4px 12px;
-  background: var(--bg);
-  border-top: 1px solid var(--border);
+  padding: 0;
+  background: transparent;
   font-size: 12px;
   flex-wrap: wrap;
 }
@@ -783,3 +782,49 @@ body {
 .settings-content { flex: 1; min-width: 0; padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; }
 .settings-section { flex: 1; }
 .agents-head h3 { margin: 0; font-size: 15px; }
+
+/* ---- Composer (chat-style message box) ---- */
+.composer { padding: 8px 12px 6px; background: var(--bg); border-top: 1px solid var(--border); flex-shrink: 0; }
+.composer-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 8px 8px 12px;
+  transition: border-color 0.15s;
+}
+.composer-box:focus-within { border-color: var(--accent-dim); }
+.composer-box.drag { border-color: var(--accent); border-style: dashed; }
+.composer-box.disabled { opacity: 0.6; }
+.composer-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  padding: 3px 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.composer-input::placeholder { color: var(--text-dim); }
+.composer-send {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #0d0d10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.composer-send:disabled { background: var(--bg-elev2); color: var(--text-dim); cursor: default; }
+.composer-foot { display: flex; align-items: center; gap: 12px; padding: 5px 2px 0; flex-wrap: wrap; }
+.composer-hint { margin-left: auto; font-size: 11px; color: var(--text-dim); }

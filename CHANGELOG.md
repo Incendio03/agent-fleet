@@ -23,6 +23,18 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Added
+- **Chat-style message box** under each agent's terminal: normal text editing
+  (new lines with Shift+Enter, select all, copy/paste, undo), Enter sends the
+  whole message (multi-line as one bracketed paste), per-tab drafts. Ctrl+V pastes
+  images (saved to `.fleet/shots/`, path inserted); dropping files inserts their
+  paths. Esc reaches the agent (interrupt); with an empty box, ↑ ↓ Enter and
+  Shift+Tab do too, for the agent's menus. The agent/model/effort bar sits under it.
+- Ctrl+C in a terminal copies the selection when there is one.
+- Image paste falls back to the OS clipboard, so bitmap-only clipboards (Windows
+  clipboard history, Win+V) paste too, in the message box and in terminals (the
+  image is saved and its path inserted). Empty pastes say what was on the clipboard.
+
 ### Removed
 - The default File / Edit / View / Window / Help menu bar (DevTools stays on
   F12 / Ctrl+Shift+I in dev).

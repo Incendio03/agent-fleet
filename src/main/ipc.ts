@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, app, BrowserWindow, webContents } from 'electron'
+import { ipcMain, dialog, shell, app, BrowserWindow, webContents, clipboard } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -319,6 +319,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const file = join(dir, `shot-${stamp}.png`)
     await writeFile(file, Buffer.from(m[1], 'base64'))
     return file
+  })
+
+  // Read an image straight from the OS clipboard. The page's paste event can
+  // miss bitmap-only clipboards (e.g. Windows clipboard history, Win+V).
+  ipcMain.handle(IPC.clipboardImage, (): string | null => {
+    const img = clipboard.readImage()
+    return img.isEmpty() ? null : img.toDataURL()
+  })
+  ipcMain.handle(IPC.clipboardFormats, (): string[] => clipboard.availableFormats())
+  // Synchronous so a Ctrl+V keydown can decide on the spot whether to take over.
+  ipcMain.on(IPC.clipboardHasImage, (e) => {
+    e.returnValue = !clipboard.readImage().isEmpty()
   })
 
   // --- Image viewer ---------------------------------------------------------
