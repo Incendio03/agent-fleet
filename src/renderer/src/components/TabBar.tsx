@@ -10,7 +10,17 @@ const STATUS_LABEL: Record<TabStatus, string> = {
 }
 
 /** Top bar of tabs for the active project, plus the new-tab button. */
-export function TabBar({ projectId, onNewTab }: { projectId: string; onNewTab: () => void }): JSX.Element {
+export function TabBar({
+  projectId,
+  onNewTab,
+  browserOpen,
+  onToggleBrowser
+}: {
+  projectId: string
+  onNewTab: () => void
+  browserOpen: boolean
+  onToggleBrowser: () => void
+}): JSX.Element {
   const tabs = useStore((s) => s.tabs.filter((t) => t.projectId === projectId))
   const project = useStore((s) => s.projects.find((p) => p.id === projectId))
   const activeTabId = useStore((s) => s.activeTabId)
@@ -41,6 +51,14 @@ export function TabBar({ projectId, onNewTab }: { projectId: string; onNewTab: (
         </div>
       ))}
       <button className="tab-new" onClick={onNewTab} title="New agent tab">＋</button>
+      <span style={{ flex: 1 }} />
+      <button
+        className={`tab-new browser-toggle ${browserOpen ? 'on' : ''}`}
+        onClick={onToggleBrowser}
+        title={browserOpen ? 'Hide browser' : 'Show browser'}
+      >
+        🌐
+      </button>
     </div>
   )
 }

@@ -95,6 +95,8 @@ export const IPC = {
   openExternal: 'app:openExternal',
   cloneRepo: 'project:clone',
   storeImport: 'store:import',
+  browserCapture: 'browser:capture', // screenshot a <webview> by webContentsId
+  shotSave: 'shot:save', // save an annotated PNG into the project folder
   // main -> renderer (events, pushed from backend)
   tabData: 'tab:data', // terminal output chunk
   tabExit: 'tab:exit', // process exited

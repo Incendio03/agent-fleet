@@ -38,6 +38,12 @@ const api = {
   // --- Dialogs ---
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.dialogPickFolder),
 
+  // --- Side browser ---
+  captureBrowser: (webContentsId: number): Promise<string> =>
+    ipcRenderer.invoke(IPC.browserCapture, webContentsId),
+  saveShot: (projectId: string, dataUrl: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.shotSave, projectId, dataUrl),
+
   // --- Sync / system ---
   importData: (projects: Project[], tabs: Tab[]): Promise<void> =>
     ipcRenderer.invoke(IPC.storeImport, { projects, tabs }),

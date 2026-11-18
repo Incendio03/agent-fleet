@@ -1,10 +1,10 @@
-import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron'
+import { ipcMain, dialog, shell, app, BrowserWindow, webContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import {
   IPC,
   type CreateProjectOptions,
@@ -197,5 +197,34 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const dest = join(reposDir, name)
     await execFileAsync('git', ['clone', githubUrl, dest], { windowsHide: true })
     return dest
+  })
+
+  // --- Side browser ---------------------------------------------------------
+  // Screenshot the side-browser <webview>. Done here (not in the renderer) so
+  // the UI never needs direct access to another page's webContents.
+  ipcMain.handle(IPC.browserCapture, async (_e, id: number): Promise<string> => {
+    const wc = webContents.fromId(id)
+    if (!wc || wc.getType() !== 'webview') throw new Error('Browser page not found.')
+    const img = await wc.capturePage()
+    return img.toDataURL()
+  })
+
+  // Save an annotated screenshot to <project>/.fleet/shots/ and return its
+  // absolute path, so an agent working in the project can read it.
+  ipcMain.handle(IPC.shotSave, async (_e, projectId: string, dataUrl: string): Promise<string> => {
+    const project = (await store.listProjects()).find((p) => p.id === projectId)
+    if (!project) throw new Error('Project not found.')
+    const m = /^data:image\/png;base64,(.+)$/.exec(dataUrl)
+    if (!m) throw new Error('Expected a PNG image.')
+    const fleetDir = join(project.localPath, '.fleet')
+    const dir = join(fleetDir, 'shots')
+    await mkdir(dir, { recursive: true })
+    // Keep screenshots out of git without touching the project's own .gitignore.
+    const ignore = join(fleetDir, '.gitignore')
+    if (!existsSync(ignore)) await writeFile(ignore, '*\n')
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const file = join(dir, `shot-${stamp}.png`)
+    await writeFile(file, Buffer.from(m[1], 'base64'))
+    return file
   })
 }

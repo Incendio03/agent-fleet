@@ -31,8 +31,17 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false, // required so the preload can use Node's contextBridge
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      webviewTag: true // side browser panel
     }
+  })
+
+  // Lock down side-browser <webview>s: no preload, no Node, web URLs only.
+  mainWindow.webContents.on('will-attach-webview', (e, prefs, params) => {
+    delete prefs.preload
+    prefs.nodeIntegration = false
+    prefs.contextIsolation = true
+    if (!/^(https?:|about:blank)/.test(params.src)) e.preventDefault()
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
@@ -64,6 +73,15 @@ if (!gotLock) {
     }
   })
 }
+
+// Links that try to open a new window inside the side browser load in place.
+app.on('web-contents-created', (_e, wc) => {
+  if (wc.getType() !== 'webview') return
+  wc.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) void wc.loadURL(url)
+    return { action: 'deny' }
+  })
+})
 
 app.whenReady().then(async () => {
   // No agents are alive at startup — clear any stale 'running' statuses so the

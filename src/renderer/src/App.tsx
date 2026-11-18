@@ -6,6 +6,14 @@ import { TabBar } from './components/TabBar'
 import { TerminalView } from './components/TerminalView'
 import { NewProjectDialog } from './components/NewProjectDialog'
 import { NewTabDialog } from './components/NewTabDialog'
+import { BrowserPanel } from './components/BrowserPanel'
+
+const readPref = (k: string, d: string): string => {
+  try { return localStorage.getItem(k) ?? d } catch { return d }
+}
+const writePref = (k: string, v: string): void => {
+  try { localStorage.setItem(k, v) } catch { /* ignore */ }
+}
 
 export default function App(): JSX.Element {
   const init = useStore((s) => s.init)
@@ -19,6 +27,31 @@ export default function App(): JSX.Element {
 
   const [showNewProject, setShowNewProject] = useState(false)
   const [showNewTab, setShowNewTab] = useState(false)
+  const [browserOpen, setBrowserOpen] = useState(() => readPref('fleet.browser.open', '0') === '1')
+  const [browserWidth, setBrowserWidth] = useState(() => Number(readPref('fleet.browser.width', '520')) || 520)
+  const [dragging, setDragging] = useState(false)
+
+  const toggleBrowser = (): void => {
+    setBrowserOpen((o) => { writePref('fleet.browser.open', o ? '0' : '1'); return !o })
+  }
+
+  // Drag the splitter to resize the browser panel.
+  const startDrag = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    setDragging(true)
+    const onMove = (ev: PointerEvent): void => {
+      const w = Math.min(Math.max(window.innerWidth - ev.clientX, 320), window.innerWidth - 560)
+      setBrowserWidth(w)
+    }
+    const onUp = (ev: PointerEvent): void => {
+      setDragging(false)
+      writePref('fleet.browser.width', String(Math.round(window.innerWidth - ev.clientX)))
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
 
   // Start live terminal routing before any tab mounts, then load saved state.
   useEffect(() => {
@@ -37,7 +70,7 @@ export default function App(): JSX.Element {
   const canResume = activeTab != null && !liveTabIds.has(activeTab.id)
 
   return (
-    <div className="app">
+    <div className={`app ${dragging ? 'dragging' : ''}`}>
       <ProjectSidebar onNewProject={() => setShowNewProject(true)} />
 
       <main className="workspace">
@@ -51,7 +84,12 @@ export default function App(): JSX.Element {
           </div>
         ) : (
           <>
-            <TabBar projectId={activeProject.id} onNewTab={() => setShowNewTab(true)} />
+            <TabBar
+              projectId={activeProject.id}
+              onNewTab={() => setShowNewTab(true)}
+              browserOpen={browserOpen}
+              onToggleBrowser={toggleBrowser}
+            />
 
             <div className="terminal-area">
               {projectTabs.length === 0 ? (
@@ -89,6 +127,15 @@ export default function App(): JSX.Element {
           </>
         )}
       </main>
+
+      {browserOpen && (
+        <>
+          <div className="splitter" onPointerDown={startDrag} />
+          <div className="browser-slot" style={{ width: browserWidth }}>
+            <BrowserPanel onClose={toggleBrowser} />
+          </div>
+        </>
+      )}
 
       {showNewProject && <NewProjectDialog onClose={() => setShowNewProject(false)} />}
       {showNewTab && activeProject && (
