@@ -10,6 +10,7 @@ export function ProjectSidebar({
   onEditProject: (projectId: string) => void
 }): JSX.Element {
   const projects = useStore((s) => s.projects)
+  const loading = useStore((s) => s.loading)
   const tabs = useStore((s) => s.tabs)
   const activeProjectId = useStore((s) => s.activeProjectId)
   const selectProject = useStore((s) => s.selectProject)
@@ -23,7 +24,11 @@ export function ProjectSidebar({
       </div>
 
       <div className="project-list">
-        {projects.length === 0 && <div className="empty-hint">No projects yet.</div>}
+        {loading ? (
+          <div className="empty-hint"><span className="spinner sm" /> Loading…</div>
+        ) : (
+          projects.length === 0 && <div className="empty-hint">No projects yet.</div>
+        )}
         {projects.map((p) => {
           const count = tabs.filter((t) => t.projectId === p.id).length
           const running = tabs.filter((t) => t.projectId === p.id && t.status === 'running').length

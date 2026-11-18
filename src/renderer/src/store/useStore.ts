@@ -81,12 +81,7 @@ export const useStore = create<FleetState>((set, get) => ({
         window.fleet.listProjects(),
         window.fleet.listTabs()
       ])
-      set({
-        projects,
-        tabs,
-        activeProjectId: projects[0]?.id ?? null,
-        loading: false
-      })
+      set({ projects, tabs })
       // Subscribe once to live backend events that mutate tab state.
       window.fleet.onTabStatus((tabId, status) => get().setTabStatus(tabId, status))
       window.fleet.onTabExit((tabId, exitCode) =>
@@ -94,6 +89,14 @@ export const useStore = create<FleetState>((set, get) => ({
           tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, exitCode } : t))
         }))
       )
+      // Stay on the loading screen until cloud projects are in too (no-op when
+      // signed out), so the UI doesn't flash "Welcome" and then pop projects in.
+      // Capped so a slow/offline network never blocks startup.
+      await Promise.race([
+        get().restoreFromCloud().catch(() => {}),
+        new Promise((r) => setTimeout(r, 8000))
+      ])
+      set((s) => ({ loading: false, activeProjectId: s.activeProjectId ?? s.projects[0]?.id ?? null }))
     } catch (err) {
       set({ loading: false, error: (err as Error).message })
     }
@@ -215,7 +218,19 @@ export const useStore = create<FleetState>((set, get) => ({
   // into the backend store (so tab:create can find them), then merge into view.
   // Dedupe projects by id AND localPath so the same folder isn't shown twice.
   // Restored tabs have no live process here, so force their status to 'idle'.
-  restoreFromCloud: async () => {
+  // Startup and the auth listener can both call this at once; share one run.
+  restoreFromCloud: () => {
+    restoreInFlight ??= doRestore().finally(() => { restoreInFlight = null })
+    return restoreInFlight
+  }
+}))
+
+let restoreInFlight: Promise<void> | null = null
+
+async function doRestore(): Promise<void> {
+  const get = useStore.getState
+  const set = useStore.setState
+  {
     const snap = await pullAll()
     if (!snap) return
     const s = get()
@@ -240,4 +255,4 @@ export const useStore = create<FleetState>((set, get) => ({
       }))
     }
   }
-}))
+}

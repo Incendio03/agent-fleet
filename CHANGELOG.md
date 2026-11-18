@@ -23,6 +23,11 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Changed
+- Startup shows a full-window splash screen (logo, name, progress bar, version)
+  until projects are fully loaded, including the cloud restore when signed in
+  (capped at 8s), then fades into the app, instead of flashing the Welcome screen
+  and then popping projects in.
 
 ## [0.3.2] — 2026-11-19
 ### Fixed

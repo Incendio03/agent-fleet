@@ -8,6 +8,7 @@ import { NewProjectDialog } from './components/NewProjectDialog'
 import { NewTabDialog } from './components/NewTabDialog'
 import { BrowserPanel } from './components/BrowserPanel'
 import { ImageViewer } from './components/ImageViewer'
+import { SplashScreen } from './components/SplashScreen'
 
 const readPref = (k: string, d: string): string => {
   try { return localStorage.getItem(k) ?? d } catch { return d }
@@ -78,7 +79,7 @@ export default function App(): JSX.Element {
 
       <main className="workspace">
         {loading ? (
-          <div className="center-hint">Loading…</div>
+          null
         ) : !activeProject ? (
           <div className="center-hint">
             <h1>Welcome to Agent Fleet</h1>
@@ -161,6 +162,7 @@ export default function App(): JSX.Element {
       )}
 
       <ImageViewer />
+      <SplashScreen done={!loading} />
 
       {error && (
         <div className="toast error" onClick={() => setError(null)}>
