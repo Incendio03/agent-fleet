@@ -3,21 +3,17 @@ import { join } from 'node:path'
 import { registerIpc } from './ipc'
 import { detectClaude } from './claude'
 import { sessionManager } from './sessionManager'
+import { startAuthServer, stopAuthServer } from './authServer'
 import { IPC } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
 
-// Custom URL scheme used as the OAuth redirect target: agentfleet://auth?code=...
-const PROTOCOL = 'agentfleet'
-
-/** Pull an agentfleet:// callback URL out of argv/args and hand it to the UI. */
-function forwardAuthCallback(url: string | undefined): void {
-  if (url && url.startsWith(`${PROTOCOL}://`)) {
-    mainWindow?.webContents.send(IPC.authCallback, url)
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
+/** Hand an OAuth callback URL (from the loopback server) to the UI + refocus. */
+function forwardAuthCallback(url: string): void {
+  mainWindow?.webContents.send(IPC.authCallback, url)
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
   }
 }
 
@@ -55,29 +51,24 @@ function createWindow(): void {
   }
 }
 
-// Only one instance may run, so OAuth deep-links always reach the live window.
+// Single instance so the loopback auth server port is never double-bound.
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
-  // Windows/Linux: the deep link arrives as an argv on the second instance.
-  app.on('second-instance', (_e, argv) => {
-    forwardAuthCallback(argv.find((a) => a.startsWith(`${PROTOCOL}://`)))
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
   })
-  // macOS: the deep link arrives via open-url.
-  app.on('open-url', (_e, url) => forwardAuthCallback(url))
-}
-
-// Register as the handler for agentfleet:// links.
-if (process.defaultApp && process.argv.length >= 2) {
-  // dev mode: must pass the script path so Windows re-launches us correctly
-  app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [join(process.argv[1])])
-} else {
-  app.setAsDefaultProtocolClient(PROTOCOL)
 }
 
 app.whenReady().then(async () => {
   registerIpc(() => mainWindow)
+
+  // Loopback server that catches the GitHub/Supabase OAuth redirect.
+  startAuthServer((url) => forwardAuthCallback(url))
 
   // Warm up claude detection so the first tab spawns instantly and we can warn
   // early if the CLI isn't found.
@@ -94,7 +85,10 @@ app.whenReady().then(async () => {
 })
 
 // Kill all agent processes when the app closes so none are orphaned.
-app.on('before-quit', () => sessionManager.killAll())
+app.on('before-quit', () => {
+  sessionManager.killAll()
+  stopAuthServer()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

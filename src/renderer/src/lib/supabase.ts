@@ -6,9 +6,9 @@ import { createClient, type Session, type SupabaseClient } from '@supabase/supab
  * The app is local-first: if no Supabase keys are configured it runs entirely
  * offline and this module is inert. When keys ARE present, this gives us cloud
  * login (so projects/tabs follow the user across devices) using a desktop-friendly
- * PKCE OAuth flow: we open GitHub in the real browser, GitHub redirects to our
- * custom agentfleet:// scheme, the main process forwards that back, and we
- * exchange the code for a session here.
+ * PKCE OAuth flow: we open GitHub in the real browser, Supabase redirects to a
+ * loopback URL (http://localhost:8923/callback) served by the main process,
+ * which forwards the code back here to exchange for a session.
  */
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
@@ -27,7 +27,8 @@ export const supabase: SupabaseClient | null = isCloudEnabled
     })
   : null
 
-const REDIRECT_TO = 'agentfleet://auth'
+// Must match the loopback server in src/main/authServer.ts (port 8923).
+const REDIRECT_TO = 'http://localhost:8923/callback'
 
 /** Kick off GitHub sign-in: returns the URL to open in the external browser. */
 export async function startGitHubLogin(): Promise<void> {
