@@ -32,6 +32,8 @@ interface FleetState {
   liveTabIds: Set<string>
   loading: boolean
   error: string | null
+  /** Image currently shown in the full-window viewer, if any. */
+  viewer: { src: string; path: string } | null
 
   // selectors as plain derived helpers are done in components; actions below
   init: () => Promise<void>
@@ -45,6 +47,8 @@ interface FleetState {
   setTabStatus: (tabId: string, status: TabStatus) => void
   setError: (msg: string | null) => void
   restoreFromCloud: () => Promise<void>
+  openImage: (path: string) => Promise<void>
+  closeImage: () => void
 }
 
 export const useStore = create<FleetState>((set, get) => ({
@@ -55,6 +59,16 @@ export const useStore = create<FleetState>((set, get) => ({
   liveTabIds: new Set<string>(),
   loading: true,
   error: null,
+  viewer: null,
+
+  openImage: async (path) => {
+    try {
+      set({ viewer: { src: await window.fleet.readImage(path), path } })
+    } catch (err) {
+      set({ error: `Could not open image: ${(err as Error).message}` })
+    }
+  },
+  closeImage: () => set({ viewer: null }),
 
   init: async () => {
     set({ loading: true })

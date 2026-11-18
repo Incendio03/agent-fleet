@@ -97,6 +97,9 @@ export const IPC = {
   storeImport: 'store:import',
   browserCapture: 'browser:capture', // screenshot a <webview> by webContentsId
   shotSave: 'shot:save', // save an annotated PNG into the project folder
+  imageResolve: 'image:resolve', // [Image #N] in a tab -> file path on disk
+  imageRead: 'image:read', // image file -> data URL for the viewer
+  imageReveal: 'image:reveal', // show an image file in Explorer
   // main -> renderer (events, pushed from backend)
   tabData: 'tab:data', // terminal output chunk
   tabExit: 'tab:exit', // process exited

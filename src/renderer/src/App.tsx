@@ -7,6 +7,7 @@ import { TerminalView } from './components/TerminalView'
 import { NewProjectDialog } from './components/NewProjectDialog'
 import { NewTabDialog } from './components/NewTabDialog'
 import { BrowserPanel } from './components/BrowserPanel'
+import { ImageViewer } from './components/ImageViewer'
 
 const readPref = (k: string, d: string): string => {
   try { return localStorage.getItem(k) ?? d } catch { return d }
@@ -141,6 +142,8 @@ export default function App(): JSX.Element {
       {showNewTab && activeProject && (
         <NewTabDialog projectId={activeProject.id} onClose={() => setShowNewTab(false)} />
       )}
+
+      <ImageViewer />
 
       {error && (
         <div className="toast error" onClick={() => setError(null)}>

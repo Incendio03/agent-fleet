@@ -28,6 +28,9 @@ The running version is shown in the app's sidebar header.
   splitter). **Annotate** works like a snipping tool: drag a box on the live page,
   add an optional note, send. The full screenshot (box + note drawn in) is saved to
   `<project>/.fleet/shots/` (git-ignored) and its path typed into the active agent.
+- **Click images in the terminal to view them.** `[Image #N]` placeholders (pasted,
+  sent or not) and image file paths are clickable and open an in-app viewer
+  (fit / actual size, Show in folder).
 
 ## [0.2.2] — 2026-11-18
 ### Fixed

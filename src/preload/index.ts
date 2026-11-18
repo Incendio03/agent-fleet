@@ -44,6 +44,12 @@ const api = {
   saveShot: (projectId: string, dataUrl: string): Promise<string> =>
     ipcRenderer.invoke(IPC.shotSave, projectId, dataUrl),
 
+  // --- Image viewer ---
+  resolveImage: (tabId: string, n: number): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.imageResolve, tabId, n),
+  readImage: (path: string): Promise<string> => ipcRenderer.invoke(IPC.imageRead, path),
+  revealImage: (path: string): Promise<void> => ipcRenderer.invoke(IPC.imageReveal, path),
+
   // --- Sync / system ---
   importData: (projects: Project[], tabs: Tab[]): Promise<void> =>
     ipcRenderer.invoke(IPC.storeImport, { projects, tabs }),

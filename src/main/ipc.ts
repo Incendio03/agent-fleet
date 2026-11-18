@@ -2,9 +2,10 @@ import { ipcMain, dialog, shell, app, BrowserWindow, webContents } from 'electro
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { join } from 'node:path'
+import { join, extname } from 'node:path'
+import { tmpdir } from 'node:os'
 import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
 import {
   IPC,
   type CreateProjectOptions,
@@ -227,4 +228,42 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     await writeFile(file, Buffer.from(m[1], 'base64'))
     return file
   })
+
+  // --- Image viewer ---------------------------------------------------------
+  // Claude Code saves pasted images (shown as "[Image #N]" in its prompt) to
+  // <tmp>/claude/<project-hash>/<sessionId>/images/<N>.png as soon as they're
+  // pasted. Each tab has a stable sessionId, so we can find the file.
+  ipcMain.handle(IPC.imageResolve, async (_e, tabId: string, n: number): Promise<string | null> => {
+    const tab = (await store.listTabs()).find((t) => t.id === tabId)
+    if (!tab || !Number.isInteger(n)) return null
+    const base = join(tmpdir(), 'claude')
+    let dirs: string[] = []
+    try { dirs = await readdir(base) } catch { return null }
+    for (const d of dirs) {
+      for (const ext of ['png', 'jpg', 'jpeg', 'gif', 'webp']) {
+        const file = join(base, d, tab.sessionId, 'images', `${n}.${ext}`)
+        if (existsSync(file)) return file
+      }
+    }
+    return null
+  })
+
+  ipcMain.handle(IPC.imageRead, async (_e, path: string): Promise<string> => {
+    const mime = IMAGE_MIME[extname(path).toLowerCase()]
+    if (!mime) throw new Error('Not an image file.')
+    const buf = await readFile(path)
+    return `data:${mime};base64,${buf.toString('base64')}`
+  })
+
+  ipcMain.handle(IPC.imageReveal, async (_e, path: string): Promise<void> => {
+    if (IMAGE_MIME[extname(path).toLowerCase()]) shell.showItemInFolder(path)
+  })
+}
+
+const IMAGE_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp'
 }

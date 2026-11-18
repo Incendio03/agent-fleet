@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { registerTerminal, unregisterTerminal } from '../lib/terminalRegistry'
+import { registerImageLinks } from '../lib/imageLinks'
 
 /**
  * One live terminal for one tab.
@@ -37,6 +38,7 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.loadAddon(new WebLinksAddon())
+    const imageLinks = registerImageLinks(term, tabId)
     term.open(host)
 
     termRef.current = term
@@ -65,6 +67,7 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
       cancelAnimationFrame(raf)
       ro.disconnect()
       inputDisposable.dispose()
+      imageLinks.dispose()
       unregisterTerminal(tabId)
       term.dispose()
       termRef.current = null

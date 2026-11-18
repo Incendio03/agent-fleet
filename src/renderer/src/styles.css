@@ -433,3 +433,47 @@ body {
 }
 .snip-note input:focus { border-color: #fff; }
 .snip-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+
+/* ---- Image viewer ---- */
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 8, 11, 0.92);
+}
+.image-viewer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+}
+.image-viewer-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-viewer-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.image-viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5);
+  cursor: zoom-in;
+}
+.image-viewer-stage.zoomed { overflow: auto; align-items: flex-start; justify-content: flex-start; }
+.image-viewer-stage.zoomed img { max-width: none; max-height: none; cursor: zoom-out; }
