@@ -23,6 +23,8 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+
+## [0.3.0] — 2026-11-18
 ### Added
 - **Side browser panel** (one per window, toggle with 🌐 in the tab bar, resizable
   splitter). **Annotate** works like a snipping tool: drag a box on the live page,
