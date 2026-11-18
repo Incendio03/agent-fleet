@@ -89,20 +89,20 @@ Env lives in `.env` (git-ignored); see `.env.example`. Required for cloud:
 - **Windows machine**, `claude` 2.1.327 (supports --model/--effort/--permission-mode/
   --session-id/--resume/--continue). node-pty ships prebuilt binaries (no build tools).
 
-## Current status (as of v0.2.0, 2026-11-18)
+## Current status (as of v0.2.2, 2026-11-18)
 Working: app builds/runs, projects persist, agent/role tabs, Supabase login (tested,
 works), cloud sync wiring, session-resume feature (built, flags verified present).
+Recently fixed: blank terminal after restart (0.2.1, liveTabIds); "Project not found"
+on tab create for cloud-synced projects (0.2.2, cloud restore now persists to the
+local store via store:import).
 
 ## Open threads / next steps (START HERE)
-1. **Verify tab persistence.** Confirm that launching an agent tab, closing/reopening
-   the app, brings the tab back (store.json had a project but 0 tabs — tabs had not
-   been created+persisted yet when last checked). Likely fine; needs a real test.
+1. **Verify tab persistence end to end.** Launch an agent tab, close/reopen the app,
+   confirm it comes back (now that restored tabs show the Resume overlay and are
+   persisted locally). Needs a real run-through.
 2. **Test session-resume end to end.** Launch an agent, give it a memorable fact,
    `/exit` it (or quit app), click "Resume agent", confirm it recalls the fact.
-3. **Cloud-restore on startup.** `restoreFromCloud` currently merges cloud data into
-   the renderer view but does NOT write it back to local store.json, and only runs on
-   auth-state-change. Consider pulling + persisting on startup for true multi-device.
-4. **Deployment (deferred until stable).** Package with electron-builder; add
+3. **Deployment (deferred until stable).** Package with electron-builder; add
    electron-updater + GitHub Releases for auto-update (install once, self-updates).
    SemVer/CHANGELOG/tags are already in place to support this.
 5. **Nice-to-haves:** save terminal transcripts; per-tab "open PR" button; auto-clone a
