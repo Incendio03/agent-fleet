@@ -32,6 +32,10 @@ The running version is shown in the app's sidebar header.
   sent or not) and image file paths are clickable and open an in-app viewer
   (fit / actual size, Show in folder).
 
+### Fixed
+- Terminal text no longer runs under the scrollbar (FitAddon was measuring the
+  host's padding as usable width).
+
 ## [0.2.2] — 2026-11-18
 ### Fixed
 - **"Project not found" when creating a tab on a cloud-synced project.** Cloud
