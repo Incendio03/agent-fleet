@@ -182,5 +182,7 @@ export const IPC = {
   tabExit: 'tab:exit', // process exited
   tabStatus: 'tab:status', // status changed
   browserZoom: 'browser:zoom', // side-browser zoom changed (percent)
+  browserOpenTab: 'browser:openTab', // a page asked for a new window -> open a browser tab
+  browserShortcut: 'browser:shortcut', // Ctrl+T / Ctrl+W pressed inside a page
   authCallback: 'auth:callback' // OAuth deep-link redirect came back
 } as const

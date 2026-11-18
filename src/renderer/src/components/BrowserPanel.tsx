@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { attachToComposer } from './Composer'
 
@@ -29,23 +29,139 @@ function normalizeUrl(input: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(s)}`
 }
 
+/** One browser tab. `src` is what its webview was created with (never changes). */
+interface BTab {
+  id: string
+  src: string
+  url: string
+  title: string
+  favicon?: string
+  loading: boolean
+  back: boolean
+  fwd: boolean
+  zoom: number
+}
+
+const TABS_KEY = 'fleet.browser.tabs'
+const newId = (): string => Math.random().toString(36).slice(2, 10)
+const makeTab = (url: string): BTab => ({
+  id: newId(),
+  src: url,
+  url,
+  title: 'New tab',
+  loading: false,
+  back: false,
+  fwd: false,
+  zoom: 100
+})
+
+/** Restore saved tabs (falls back to the single URL older versions saved). */
+function loadSession(): { tabs: BTab[]; active: string } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TABS_KEY) || 'null') as { urls: string[]; active: number } | null
+    if (saved?.urls?.length) {
+      const tabs = saved.urls.map(makeTab)
+      return { tabs, active: tabs[Math.min(Math.max(saved.active, 0), tabs.length - 1)].id }
+    }
+  } catch { /* ignore */ }
+  let url = HOME
+  try { url = localStorage.getItem('fleet.browser.url') || HOME } catch { /* ignore */ }
+  const t = makeTab(url)
+  return { tabs: [t], active: t.id }
+}
+
 /**
- * Side browser (one per window). Browse any page; "Annotate" lets you box an
- * area directly on the page and send the full screenshot (with the box and an
- * optional note drawn on it) to the active agent.
+ * Side browser (one per window) with tabs. Browse any page; "Annotate" boxes
+ * an area on the current tab and attaches the screenshot to the active agent.
+ * Ctrl+T / Ctrl+W open/close tabs; links that open a new window open a tab.
  */
 export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element {
-  const wvRef = useRef<WebviewEl | null>(null)
-  const [initialSrc] = useState(() => {
-    try { return localStorage.getItem('fleet.browser.url') || HOME } catch { return HOME }
-  })
-  const [address, setAddress] = useState(initialSrc)
-  const [loading, setLoading] = useState(false)
-  const [nav, setNav] = useState({ back: false, fwd: false })
+  const [session] = useState(loadSession)
+  const [tabs, setTabs] = useState<BTab[]>(session.tabs)
+  const [activeId, setActiveId] = useState(session.active)
+  const views = useRef(new Map<string, WebviewEl>())
+  const [address, setAddress] = useState('')
   const [snipping, setSnipping] = useState(false)
-  const [zoom, setZoom] = useState(100)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const urlRef = useRef<HTMLInputElement>(null)
+  const setError = useStore((s) => s.setError)
+
+  const active = tabs.find((t) => t.id === activeId) ?? tabs[0]
+  const wv = (): WebviewEl | undefined => views.current.get(active?.id)
+
+  // Latest values for IPC callbacks registered once.
+  const latest = useRef({ tabs, activeId })
+  latest.current = { tabs, activeId }
+
+  const patch = useCallback((id: string, p: Partial<BTab>): void => {
+    setTabs((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)))
+  }, [])
+
+  /**
+   * Open a tab. Like Chrome: new tabs (+, Ctrl+T) go at the far right; links
+   * that open a new window go just right of the current tab.
+   */
+  const openTab = useCallback((url: string, focusAddress = false, nextToCurrent = false): void => {
+    const t = makeTab(url)
+    setTabs((ts) => {
+      const i = ts.findIndex((x) => x.id === latest.current.activeId)
+      if (!nextToCurrent || i < 0) return [...ts, t]
+      const next = [...ts]
+      next.splice(i + 1, 0, t)
+      return next
+    })
+    setActiveId(t.id)
+    if (focusAddress) requestAnimationFrame(() => urlRef.current?.focus())
+  }, [])
+
+  const closeTab = useCallback((id: string): void => {
+    const { tabs: ts, activeId: cur } = latest.current
+    const i = ts.findIndex((t) => t.id === id)
+    if (i < 0) return
+    views.current.delete(id)
+    if (ts.length === 1) {
+      // Always keep one tab: closing the last one starts a fresh page.
+      const t = makeTab(HOME)
+      setTabs([t])
+      setActiveId(t.id)
+      return
+    }
+    const rest = ts.filter((t) => t.id !== id)
+    setTabs(rest)
+    if (cur === id) setActiveId(rest[Math.min(i, rest.length - 1)].id)
+  }, [])
+
+  // Remember tabs across restarts.
+  useEffect(() => {
+    try {
+      localStorage.setItem(TABS_KEY, JSON.stringify({
+        urls: tabs.map((t) => t.url),
+        active: Math.max(0, tabs.findIndex((t) => t.id === activeId))
+      }))
+    } catch { /* ignore */ }
+  }, [tabs, activeId])
+
+  // Address bar follows the current tab.
+  useEffect(() => { if (active) setAddress(active.url) }, [active?.id, active?.url])
+
+  // Leaving a tab ends any annotation in progress.
+  useEffect(() => { setSnipping(false) }, [activeId])
+
+  // From main: links that want a new window, and Ctrl+T / Ctrl+W pressed inside a page.
+  useEffect(() => {
+    // Optional calls: after a hot reload the preload may predate these (until a
+    // full restart) — degrade instead of crashing the whole UI.
+    const off1 = window.fleet.onBrowserOpenTab?.((url) => openTab(url, false, true))
+    const off2 = window.fleet.onBrowserShortcut?.((action) => {
+      if (action === 'newTab') openTab(HOME, true)
+      else if (action === 'closeTab') closeTab(latest.current.activeId)
+    })
+    return () => { off1?.(); off2?.() }
+  }, [openTab, closeTab])
+
+  // Zoom changes from Ctrl+/-/wheel inside the (focused = current) page.
+  useEffect(() => window.fleet.onBrowserZoom((z) => patch(latest.current.activeId, { zoom: z })), [patch])
 
   // Close the kebab menu on any click outside it.
   useEffect(() => {
@@ -59,73 +175,77 @@ export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element 
 
   /** Step zoom like Chrome (~10% per step); null resets to 100%. */
   const zoomBy = (delta: number | null): void => {
-    const wv = wvRef.current
-    if (!wv || typeof wv.getZoomLevel !== 'function') return
-    const level = delta === null ? 0 : Math.min(Math.max(wv.getZoomLevel() + delta, -5), 5)
-    wv.setZoomLevel(level)
-    setZoom(Math.round(Math.pow(1.2, level) * 100))
+    const v = wv()
+    if (!v || typeof v.getZoomLevel !== 'function') return
+    const level = delta === null ? 0 : Math.min(Math.max(v.getZoomLevel() + delta, -5), 5)
+    v.setZoomLevel(level)
+    patch(active.id, { zoom: Math.round(Math.pow(1.2, level) * 100) })
   }
-
-  useEffect(() => window.fleet.onBrowserZoom(setZoom), [])
-  const setError = useStore((s) => s.setError)
-
-  useEffect(() => {
-    const wv = wvRef.current
-    if (!wv) return
-    const sync = (): void => {
-      const url = wv.getURL()
-      setAddress(url)
-      setNav({ back: wv.canGoBack(), fwd: wv.canGoForward() })
-      try { localStorage.setItem('fleet.browser.url', url) } catch { /* ignore */ }
-    }
-    const start = (): void => setLoading(true)
-    const stop = (): void => { setLoading(false); sync() }
-    // Chromium remembers zoom per site; reflect it after each navigation.
-    const syncZoom = (): void => {
-      const z = (wv as unknown as { getZoomFactor?: () => number }).getZoomFactor?.()
-      if (z) setZoom(Math.round(z * 100))
-    }
-    wv.addEventListener('did-finish-load', syncZoom)
-    wv.addEventListener('did-navigate', sync)
-    wv.addEventListener('did-navigate-in-page', sync)
-    wv.addEventListener('did-start-loading', start)
-    wv.addEventListener('did-stop-loading', stop)
-    return () => {
-      wv.removeEventListener('did-navigate', sync)
-      wv.removeEventListener('did-navigate-in-page', sync)
-      wv.removeEventListener('did-start-loading', start)
-      wv.removeEventListener('did-stop-loading', stop)
-      wv.removeEventListener('did-finish-load', syncZoom)
-    }
-  }, [])
 
   const go = (): void => {
     const url = normalizeUrl(address)
     setAddress(url)
-    void wvRef.current?.loadURL(url).catch(() => { /* navigation errors show in-page */ })
+    void wv()?.loadURL(url).catch(() => { /* navigation errors show in-page */ })
   }
 
   const toggleSnip = (): void => {
-    if (typeof wvRef.current?.getWebContentsId !== 'function') {
+    if (typeof wv()?.getWebContentsId !== 'function') {
       setError('Browser not initialised — fully restart the app (stop and re-run npm run dev).')
       return
     }
     setSnipping((v) => !v)
   }
 
+  // Ctrl+T / Ctrl+W while focus is in the panel itself (e.g. the address bar).
+  const onPanelKey = (e: React.KeyboardEvent): void => {
+    if (!e.ctrlKey || e.altKey || e.shiftKey) return
+    const k = e.key.toLowerCase()
+    if (k === 't') { e.preventDefault(); openTab(HOME, true) }
+    else if (k === 'w') { e.preventDefault(); closeTab(activeId) }
+  }
+
   return (
-    <div className="browser-panel">
+    <div className="browser-panel" onKeyDown={onPanelKey}>
+      <div className="browser-tabs">
+        {tabs.map((t) => (
+          <div
+            key={t.id}
+            className={`browser-tab ${t.id === active?.id ? 'active' : ''}`}
+            onClick={() => setActiveId(t.id)}
+            onAuxClick={(e) => { if (e.button === 1) closeTab(t.id) }}
+            title={`${t.title}\n${t.url}`}
+          >
+            {t.loading ? (
+              <span className="spinner sm browser-tab-icon" />
+            ) : t.favicon ? (
+              <img className="browser-tab-icon" src={t.favicon} alt="" />
+            ) : (
+              <span className="browser-tab-icon dot" />
+            )}
+            <span className="browser-tab-title">{t.title || t.url}</span>
+            <button
+              className="browser-tab-close"
+              onClick={(e) => { e.stopPropagation(); closeTab(t.id) }}
+              title="Close tab (Ctrl+W)"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button className="browser-tab-new" onClick={() => openTab(HOME, true)} title="New tab (Ctrl+T)">+</button>
+      </div>
       <div className="browser-bar">
-        <button className="icon-btn" disabled={!nav.back} onClick={() => wvRef.current?.goBack()} title="Back">‹</button>
-        <button className="icon-btn" disabled={!nav.fwd} onClick={() => wvRef.current?.goForward()} title="Forward">›</button>
+        <button className="icon-btn" disabled={!active?.back} onClick={() => wv()?.goBack()} title="Back">‹</button>
+        <button className="icon-btn" disabled={!active?.fwd} onClick={() => wv()?.goForward()} title="Forward">›</button>
         <button
           className="icon-btn"
-          onClick={() => (loading ? wvRef.current?.stop() : wvRef.current?.reload())}
-          title={loading ? 'Stop' : 'Reload'}
+          onClick={() => (active?.loading ? wv()?.stop() : wv()?.reload())}
+          title={active?.loading ? 'Stop' : 'Reload'}
         >
-          {loading ? '×' : '↻'}
+          {active?.loading ? '×' : '↻'}
         </button>
         <input
+          ref={urlRef}
           className="browser-url"
           value={address}
           spellCheck={false}
@@ -137,7 +257,7 @@ export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element 
         <button
           className={`btn sm outline ${snipping ? 'active' : ''}`}
           onClick={toggleSnip}
-          title="Drag a box on the page, add an optional note, send to the agent"
+          title="Drag a box on the page, add an optional note, attach it to the agent"
         >
           Annotate
         </button>
@@ -149,27 +269,88 @@ export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element 
                 <span>Zoom</span>
                 <span className="zoom-ctrl">
                   <button className="icon-btn" onClick={() => zoomBy(-0.5)} title="Zoom out (Ctrl −)">−</button>
-                  <button className="zoom-value" onClick={() => zoomBy(null)} title="Reset (Ctrl 0)">{zoom}%</button>
+                  <button className="zoom-value" onClick={() => zoomBy(null)} title="Reset (Ctrl 0)">{active?.zoom ?? 100}%</button>
                   <button className="icon-btn" onClick={() => zoomBy(0.5)} title="Zoom in (Ctrl +)">+</button>
                 </span>
               </div>
+              <button className="kebab-item" onClick={() => { setMenuOpen(false); openTab(HOME, true) }}>New tab</button>
               <button className="kebab-item" onClick={() => { setMenuOpen(false); onClose() }}>Close browser</button>
             </div>
           )}
         </div>
       </div>
       <div className="browser-stage">
-        <webview
-          ref={(el) => { wvRef.current = el as WebviewEl | null }}
-          className="browser-view"
-          src={initialSrc}
-          partition="persist:fleet-browser"
-        />
-        {snipping && wvRef.current && (
-          <SnipOverlay webviewId={wvRef.current.getWebContentsId()} onDone={() => setSnipping(false)} />
+        {tabs.map((t) => (
+          <BrowserTabView
+            key={t.id}
+            tab={t}
+            visible={t.id === active?.id}
+            onPatch={patch}
+            register={(el) => {
+              if (el) views.current.set(t.id, el)
+              else views.current.delete(t.id)
+            }}
+          />
+        ))}
+        {snipping && wv() && (
+          <SnipOverlay webviewId={wv()!.getWebContentsId()} onDone={() => setSnipping(false)} />
         )}
       </div>
     </div>
+  )
+}
+
+/** One tab's page. Stays mounted while hidden so its page and scroll survive. */
+function BrowserTabView({
+  tab,
+  visible,
+  onPatch,
+  register
+}: {
+  tab: BTab
+  visible: boolean
+  onPatch: (id: string, p: Partial<BTab>) => void
+  register: (el: WebviewEl | null) => void
+}): JSX.Element {
+  const ref = useRef<WebviewEl | null>(null)
+
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    const id = tab.id
+    const sync = (): void => onPatch(id, { url: v.getURL(), back: v.canGoBack(), fwd: v.canGoForward() })
+    const start = (): void => onPatch(id, { loading: true })
+    const stop = (): void => { onPatch(id, { loading: false }); sync() }
+    const title = (e: Event): void => onPatch(id, { title: (e as Event & { title: string }).title })
+    const favicon = (e: Event): void => onPatch(id, { favicon: (e as Event & { favicons: string[] }).favicons?.[0] })
+    // Chromium remembers zoom per site; reflect it after each load.
+    const zoom = (): void => {
+      const z = (v as unknown as { getZoomFactor?: () => number }).getZoomFactor?.()
+      if (z) onPatch(id, { zoom: Math.round(z * 100) })
+    }
+    const events: [string, (e: Event) => void][] = [
+      ['did-navigate', sync],
+      ['did-navigate-in-page', sync],
+      ['did-start-loading', start],
+      ['did-stop-loading', stop],
+      ['page-title-updated', title],
+      ['page-favicon-updated', favicon],
+      ['did-finish-load', zoom]
+    ]
+    for (const [n, f] of events) v.addEventListener(n, f)
+    return () => { for (const [n, f] of events) v.removeEventListener(n, f) }
+  }, [tab.id, onPatch])
+
+  return (
+    <webview
+      ref={(el) => {
+        ref.current = el as WebviewEl | null
+        register(el as WebviewEl | null)
+      }}
+      className={`browser-view ${visible ? '' : 'hidden'}`}
+      src={tab.src}
+      partition="persist:fleet-browser"
+    />
   )
 }
 

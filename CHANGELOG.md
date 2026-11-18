@@ -23,6 +23,12 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Added
+- **Browser tabs** in the side panel: tab strip with titles + site icons, + / ×
+  (middle-click closes), Ctrl+T / Ctrl+W, links that open a new window open a tab,
+  tabs remembered across restarts. Each tab keeps its page while hidden; Annotate,
+  zoom and the menu act on the current tab.
+
 
 ## [0.4.0] — 2026-11-19
 ### Added

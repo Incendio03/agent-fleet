@@ -57,6 +57,16 @@ const api = {
   clipboardHasImage: (): boolean => ipcRenderer.sendSync(IPC.clipboardHasImage) === true,
   saveShot: (projectId: string, dataUrl: string): Promise<string> =>
     ipcRenderer.invoke(IPC.shotSave, projectId, dataUrl),
+  onBrowserOpenTab: (cb: (url: string) => void): (() => void) => {
+    const h = (_e: unknown, url: string): void => cb(url)
+    ipcRenderer.on(IPC.browserOpenTab, h)
+    return () => ipcRenderer.removeListener(IPC.browserOpenTab, h)
+  },
+  onBrowserShortcut: (cb: (action: 'newTab' | 'closeTab') => void): (() => void) => {
+    const h = (_e: unknown, action: 'newTab' | 'closeTab'): void => cb(action)
+    ipcRenderer.on(IPC.browserShortcut, h)
+    return () => ipcRenderer.removeListener(IPC.browserShortcut, h)
+  },
   onBrowserZoom: (cb: (percent: number) => void): (() => void) => {
     const h = (_e: unknown, percent: number): void => cb(percent)
     ipcRenderer.on(IPC.browserZoom, h)

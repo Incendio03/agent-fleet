@@ -90,8 +90,12 @@ if (!gotLock) {
 // Links that try to open a new window inside the side browser load in place.
 app.on('web-contents-created', (_e, wc) => {
   if (wc.getType() !== 'webview') return
+  // Links that want a new window (target=_blank, window.open) open a browser tab.
   wc.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) void wc.loadURL(url)
+    if (/^https?:/.test(url)) {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.browserOpenTab, url)
+      else void wc.loadURL(url)
+    }
     return { action: 'deny' }
   })
 
@@ -104,6 +108,12 @@ app.on('web-contents-created', (_e, wc) => {
   }
   wc.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown' || !(input.control || input.meta) || input.alt) return
+    const key = input.key.toLowerCase()
+    if ((key === 't' || key === 'w') && !input.shift) {
+      mainWindow?.webContents.send(IPC.browserShortcut, key === 't' ? 'newTab' : 'closeTab')
+      e.preventDefault()
+      return
+    }
     if (input.key === '=' || input.key === '+') zoom(0.5)
     else if (input.key === '-') zoom(-0.5)
     else if (input.key === '0') zoom(null)
