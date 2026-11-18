@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to Agent Fleet are documented here.
 
