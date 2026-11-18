@@ -23,6 +23,10 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Removed
+- The default File / Edit / View / Window / Help menu bar (DevTools stays on
+  F12 / Ctrl+Shift+I in dev).
+
 ### Added
 - Confirmation before signing out of Agent Fleet (cloud account).
 - **Settings window** (⚙ Settings at the bottom of the sidebar), with sections;

@@ -47,6 +47,18 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => mainWindow?.show())
   mainWindow.on('closed', () => { mainWindow = null })
 
+  // No File/Edit/View menu bar. Copy/paste in inputs and terminals don't need
+  // it; keep the DevTools shortcut in dev only, since the menu provided that.
+  mainWindow.removeMenu()
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.webContents.on('before-input-event', (_e, input) => {
+      const devtools =
+        input.type === 'keyDown' &&
+        (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i'))
+      if (devtools) mainWindow?.webContents.toggleDevTools()
+    })
+  }
+
   // Open external links in the real browser, not inside the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
