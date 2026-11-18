@@ -23,6 +23,8 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+
+## [0.5.0] — 2026-11-19
 ### Added
 - **Collapsible sidebar** (« in the header; click ⚓ to expand). Collapsed, it's an
   icon rail: each project is a coloured initials badge (green dot = agents running,
