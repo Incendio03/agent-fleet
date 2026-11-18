@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
+import type { Project } from '@shared/types'
 
-/** Modal for registering a new project (an existing git repo folder on disk). */
-export function NewProjectDialog({ onClose }: { onClose: () => void }): JSX.Element {
+/** Modal for registering a new project, or editing one when `project` is given. */
+export function NewProjectDialog({ onClose, project }: { onClose: () => void; project?: Project }): JSX.Element {
   const createProject = useStore((s) => s.createProject)
-  const [name, setName] = useState('')
-  const [localPath, setLocalPath] = useState('')
-  const [githubUrl, setGithubUrl] = useState('')
+  const updateProject = useStore((s) => s.updateProject)
+  const editing = project != null
+  const [name, setName] = useState(project?.name ?? '')
+  const [localPath, setLocalPath] = useState(project?.localPath ?? '')
+  const [githubUrl, setGithubUrl] = useState(project?.githubUrl ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -27,7 +30,9 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }): JSX.Elem
     }
     setBusy(true)
     try {
-      await createProject({ name: name.trim(), localPath: localPath.trim(), githubUrl: githubUrl.trim() || undefined })
+      const opts = { name: name.trim(), localPath: localPath.trim(), githubUrl: githubUrl.trim() || undefined }
+      if (project) await updateProject(project.id, opts)
+      else await createProject(opts)
       onClose()
     } catch (e) {
       setErr((e as Error).message)
@@ -39,10 +44,11 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }): JSX.Elem
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>New project</h2>
+        <h2>{editing ? 'Edit project' : 'New project'}</h2>
         <p className="modal-sub">
-          Pick any folder — a single git repo (agents get isolated branches) or a
-          folder holding several repos (agents run directly in it).
+          {editing
+            ? 'Changing the folder moves this project’s agents to it on their next resume. Claude keeps conversation history per folder, so a moved agent may start a fresh conversation.'
+            : 'Pick any folder — a single git repo (agents get isolated branches) or a folder holding several repos (agents run directly in it).'}
         </p>
 
         <label>Folder</label>
@@ -66,7 +72,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }): JSX.Elem
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn primary" onClick={submit} disabled={busy}>
-            {busy ? 'Adding…' : 'Add project'}
+            {busy ? 'Saving…' : editing ? 'Save' : 'Add project'}
           </button>
         </div>
       </div>

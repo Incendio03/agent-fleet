@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type {
   CreateProjectOptions,
   CreateTabOptions,
+  UpdateProjectOptions,
+  UpdateTabOptions,
   Project,
   Tab,
   TabStatus
@@ -41,6 +43,8 @@ interface FleetState {
   selectTab: (tabId: string) => void
   createProject: (opts: CreateProjectOptions) => Promise<void>
   removeProject: (projectId: string) => Promise<void>
+  updateProject: (projectId: string, opts: UpdateProjectOptions) => Promise<void>
+  updateTab: (tabId: string, opts: UpdateTabOptions) => Promise<void>
   createTab: (opts: CreateTabOptions) => Promise<void>
   resumeTab: (tabId: string) => Promise<void>
   closeTab: (tabId: string, deleteBranch?: boolean) => Promise<void>
@@ -115,6 +119,24 @@ export const useStore = create<FleetState>((set, get) => ({
       set({ error: (err as Error).message })
       throw err
     }
+  },
+
+  updateProject: async (projectId, opts) => {
+    const { project, tabs } = await window.fleet.updateProject(projectId, opts)
+    const byId = new Map(tabs.map((t) => [t.id, t]))
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === projectId ? project : p)),
+      // Keep live status from the UI; take the rest (e.g. moved path) from backend.
+      tabs: s.tabs.map((t) => (byId.has(t.id) ? { ...byId.get(t.id)!, status: t.status } : t))
+    }))
+    void pushProject(project)
+    for (const t of tabs) void pushTab(t)
+  },
+
+  updateTab: async (tabId, opts) => {
+    const tab = await window.fleet.updateTab(tabId, opts)
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...tab, status: t.status } : t)) }))
+    void pushTab(tab)
   },
 
   removeProject: async (projectId) => {

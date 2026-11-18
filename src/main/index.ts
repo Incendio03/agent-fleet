@@ -45,6 +45,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.on('closed', () => { mainWindow = null })
 
   // Open external links in the real browser, not inside the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

@@ -13,11 +13,13 @@ const STATUS_LABEL: Record<TabStatus, string> = {
 export function TabBar({
   projectId,
   onNewTab,
+  onEditTab,
   browserOpen,
   onToggleBrowser
 }: {
   projectId: string
   onNewTab: () => void
+  onEditTab: (tabId: string) => void
   browserOpen: boolean
   onToggleBrowser: () => void
 }): JSX.Element {
@@ -42,11 +44,14 @@ export function TabBar({
           key={t.id}
           className={`tab ${activeTabId === t.id ? 'active' : ''}`}
           onClick={() => selectTab(t.id)}
+          onDoubleClick={() => onEditTab(t.id)}
+          onContextMenu={(e) => { e.preventDefault(); onEditTab(t.id) }}
           title={`${t.branch} · ${t.model} · ${t.permissionMode}`}
         >
           <span className={`status-dot ${t.status}`} />
           <span className="tab-title">{t.title}</span>
           <span className="tab-status">{STATUS_LABEL[t.status]}</span>
+          <button className="tab-edit" title="Edit agent" onClick={(e) => { e.stopPropagation(); onEditTab(t.id) }}>⋮</button>
           <button className="tab-close" onClick={(e) => { e.stopPropagation(); void onClose(t) }}>×</button>
         </div>
       ))}

@@ -10,6 +10,8 @@ import {
   IPC,
   type CreateProjectOptions,
   type CreateTabOptions,
+  type UpdateProjectOptions,
+  type UpdateTabOptions,
   type Project,
   type Tab
 } from '@shared/types'
@@ -26,7 +28,10 @@ const execFileAsync = promisify(execFile)
  */
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
   const broadcast = (channel: string, ...args: unknown[]): void => {
-    getWindow()?.webContents.send(channel, ...args)
+    // The window can be gone (app quitting) while PTYs are still exiting;
+    // sending to a destroyed webContents throws in the main process.
+    const w = getWindow()
+    if (w && !w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(channel, ...args)
   }
 
   // --- Forward live session events to the UI --------------------------------
@@ -69,6 +74,21 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     for (const t of tabs) sessionManager.kill(t.id)
     await store.removeProject(projectId)
   })
+
+  ipcMain.handle(
+    IPC.projectUpdate,
+    async (_e, projectId: string, opts: UpdateProjectOptions): Promise<{ project: Project; tabs: Tab[] }> => {
+      if (!opts.name.trim()) throw new Error('Name is required.')
+      if (!existsSync(opts.localPath)) throw new Error(`Folder "${opts.localPath}" does not exist.`)
+      const res = await store.updateProject(projectId, {
+        name: opts.name.trim(),
+        localPath: opts.localPath.trim(),
+        githubUrl: opts.githubUrl?.trim() || undefined
+      })
+      if (!res) throw new Error('Project not found')
+      return res
+    }
+  )
 
   // --- Tabs -----------------------------------------------------------------
   ipcMain.handle(IPC.tabList, async (_e, projectId?: string): Promise<Tab[]> =>
@@ -153,6 +173,22 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       await store.removeTab(tabId)
     }
   )
+
+  // Edit an agent tab. A running agent keeps its current settings; new
+  // model/effort/mode take effect the next time it is launched or resumed.
+  ipcMain.handle(IPC.tabUpdate, async (_e, tabId: string, opts: UpdateTabOptions): Promise<Tab> => {
+    if (!opts.title.trim()) throw new Error('Name is required.')
+    await store.updateTab(tabId, {
+      title: opts.title.trim(),
+      task: opts.task.trim(),
+      model: opts.model,
+      effort: opts.effort,
+      permissionMode: opts.permissionMode
+    })
+    const tab = (await store.listTabs()).find((t) => t.id === tabId)
+    if (!tab) throw new Error('Tab not found')
+    return tab
+  })
 
   ipcMain.on(IPC.tabInput, (_e, tabId: string, data: string) => {
     sessionManager.write(tabId, data)

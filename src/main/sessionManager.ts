@@ -36,6 +36,8 @@ export declare interface SessionManager {
 
 export class SessionManager extends EventEmitter {
   private sessions = new Map<string, Session>()
+  /** Set on app quit so dying processes don't emit events to a closed window. */
+  private shuttingDown = false
 
   /** Spawn claude for a tab inside its worktree. Returns once the PTY exists. */
   async spawn({ tab, cols, rows, resume }: SpawnArgs): Promise<void> {
@@ -75,6 +77,7 @@ export class SessionManager extends EventEmitter {
 
     proc.onExit(({ exitCode }) => {
       this.sessions.delete(tab.id)
+      if (this.shuttingDown) return
       this.setStatus(tab.id, exitCode === 0 ? 'exited' : 'error')
       this.emit('exit', tab.id, exitCode)
     })
@@ -115,13 +118,14 @@ export class SessionManager extends EventEmitter {
 
   /** Kill everything — called on app quit. */
   killAll(): void {
+    this.shuttingDown = true
     for (const id of this.sessions.keys()) this.kill(id)
   }
 
   private setStatus(tabId: string, status: TabStatus): void {
     const s = this.sessions.get(tabId)
     if (s) s.status = status
-    this.emit('status', tabId, status)
+    if (!this.shuttingDown) this.emit('status', tabId, status)
   }
 }
 

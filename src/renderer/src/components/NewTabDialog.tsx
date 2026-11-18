@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
-import type { EffortLevel, ModelAlias, PermissionMode } from '@shared/types'
+import type { EffortLevel, ModelAlias, PermissionMode, Tab } from '@shared/types'
 
 const MODELS: { value: ModelAlias; label: string }[] = [
   { value: 'sonnet', label: 'Sonnet — balanced (default)' },
@@ -21,14 +21,25 @@ const MODES: { value: PermissionMode; label: string; hint: string }[] = [
   { value: 'bypassPermissions', label: 'Let it work (autonomous)', hint: 'No prompts — agent runs on its own.' }
 ]
 
-/** Modal for launching a new agent tab within the active project. */
-export function NewTabDialog({ projectId, onClose }: { projectId: string; onClose: () => void }): JSX.Element {
+/** Modal for launching a new agent tab, or editing one when `tab` is given. */
+export function NewTabDialog({
+  projectId,
+  onClose,
+  tab
+}: {
+  projectId: string
+  onClose: () => void
+  tab?: Tab
+}): JSX.Element {
   const createTab = useStore((s) => s.createTab)
-  const [title, setTitle] = useState('')
-  const [task, setTask] = useState('')
-  const [model, setModel] = useState<ModelAlias>('sonnet')
-  const [effort, setEffort] = useState<EffortLevel>('high')
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('acceptEdits')
+  const updateTab = useStore((s) => s.updateTab)
+  const isLive = useStore((s) => (tab ? s.liveTabIds.has(tab.id) : false))
+  const editing = tab != null
+  const [title, setTitle] = useState(tab?.title ?? '')
+  const [task, setTask] = useState(tab?.task ?? '')
+  const [model, setModel] = useState<ModelAlias>(tab?.model ?? 'sonnet')
+  const [effort, setEffort] = useState<EffortLevel>(tab?.effort ?? 'high')
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(tab?.permissionMode ?? 'acceptEdits')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -40,6 +51,11 @@ export function NewTabDialog({ projectId, onClose }: { projectId: string; onClos
     }
     setBusy(true)
     try {
+      if (tab) {
+        await updateTab(tab.id, { title: title.trim(), task: task.trim(), model, effort, permissionMode })
+        onClose()
+        return
+      }
       // Agents run directly in the project folder; they create branches
       // themselves when asked, so no worktree is forced here.
       await createTab({
@@ -62,10 +78,11 @@ export function NewTabDialog({ projectId, onClose }: { projectId: string; onClos
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <h2>New agent</h2>
+        <h2>{editing ? 'Edit agent' : 'New agent'}</h2>
         <p className="modal-sub">
-          An agent that works in this project. It runs in the project folder — tell
-          it to create a branch whenever you want one.
+          {editing
+            ? `Name changes apply now. Model, effort and mode apply the next time this agent is launched or resumed${isLive ? ' (it is running now — /exit it and resume to switch)' : ''}. Instructions are only sent on a fresh start.`
+            : 'An agent that works in this project. It runs in the project folder — tell it to create a branch whenever you want one.'}
         </p>
 
         <label>Agent name / role</label>
@@ -134,7 +151,7 @@ export function NewTabDialog({ projectId, onClose }: { projectId: string; onClos
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn primary" onClick={submit} disabled={busy}>
-            {busy ? 'Launching…' : 'Launch agent'}
+            {busy ? (editing ? 'Saving…' : 'Launching…') : editing ? 'Save' : 'Launch agent'}
           </button>
         </div>
       </div>

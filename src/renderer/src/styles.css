@@ -540,3 +540,29 @@ body {
   cursor: pointer;
 }
 .kebab-item:hover { background: var(--bg-elev2); }
+
+/* ---- Edit buttons ---- */
+.project-edit {
+  position: absolute;
+  top: 8px;
+  right: 30px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15px;
+  opacity: 0;
+}
+.project-item:hover .project-edit { opacity: 1; }
+.project-edit:hover { color: var(--accent); }
+.tab-edit {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  opacity: 0;
+}
+.tab:hover .tab-edit { opacity: 1; }
+.tab-edit:hover { color: var(--accent); }

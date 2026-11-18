@@ -64,6 +64,28 @@ class Store {
     await this.persist()
   }
 
+  /**
+   * Update a project. If its folder moved, tabs that ran directly in the old
+   * folder follow it (worktree tabs keep their own path). Returns the updated
+   * project + tabs.
+   */
+  async updateProject(
+    projectId: string,
+    patch: Partial<Project>
+  ): Promise<{ project: Project; tabs: Tab[] } | null> {
+    await this.ensureLoaded()
+    const project = this.data.projects.find((p) => p.id === projectId)
+    if (!project) return null
+    const oldPath = project.localPath
+    Object.assign(project, patch)
+    const tabs = this.data.tabs.filter((t) => t.projectId === projectId)
+    if (project.localPath !== oldPath) {
+      for (const t of tabs) if (t.worktreePath === oldPath) t.worktreePath = project.localPath
+    }
+    await this.persist()
+    return { project, tabs }
+  }
+
   async listTabs(projectId?: string): Promise<Tab[]> {
     await this.ensureLoaded()
     return projectId ? this.data.tabs.filter((t) => t.projectId === projectId) : this.data.tabs

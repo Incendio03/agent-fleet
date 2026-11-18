@@ -2,7 +2,13 @@ import { useStore } from '../store/useStore'
 import { AuthBar } from './AuthBar'
 
 /** Left rail: the list of projects, plus an add button. */
-export function ProjectSidebar({ onNewProject }: { onNewProject: () => void }): JSX.Element {
+export function ProjectSidebar({
+  onNewProject,
+  onEditProject
+}: {
+  onNewProject: () => void
+  onEditProject: (projectId: string) => void
+}): JSX.Element {
   const projects = useStore((s) => s.projects)
   const tabs = useStore((s) => s.tabs)
   const activeProjectId = useStore((s) => s.activeProjectId)
@@ -26,12 +32,20 @@ export function ProjectSidebar({ onNewProject }: { onNewProject: () => void }): 
               key={p.id}
               className={`project-item ${activeProjectId === p.id ? 'active' : ''}`}
               onClick={() => selectProject(p.id)}
+              onContextMenu={(e) => { e.preventDefault(); onEditProject(p.id) }}
             >
               <div className="project-name" title={p.localPath}>{p.name}</div>
               <div className="project-meta">
                 {count} tab{count === 1 ? '' : 's'}
                 {running > 0 && <span className="dot running" title={`${running} running`} />}
               </div>
+              <button
+                className="project-edit"
+                title="Edit project"
+                onClick={(e) => { e.stopPropagation(); onEditProject(p.id) }}
+              >
+                ⋮
+              </button>
               <button
                 className="project-remove"
                 title="Remove project"

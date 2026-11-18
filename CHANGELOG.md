@@ -33,8 +33,14 @@ The running version is shown in the app's sidebar header.
   (fit / actual size, Show in folder).
 - **Side browser zoom:** Ctrl + / Ctrl − / Ctrl 0 and Ctrl + mouse wheel, plus a ⋮
   menu in the browser bar with − / % / + controls (click % to reset).
+- **Edit projects and agents.** ⋮ or right-click on a project (sidebar) edits name, folder and
+  GitHub URL; tabs following the old folder move with it. ⋮, right-click or
+  double-click on a tab edits name, instructions, model, effort and mode; settings apply
+  on the agent's next launch/resume. Changes sync to the cloud when signed in.
 
 ### Fixed
+- "A JavaScript error occurred in the main process" on quit: dying agent processes
+  sent events to the already-destroyed window.
 - Terminal text no longer runs under the scrollbar (FitAddon was measuring the
   host's padding as usable width).
 

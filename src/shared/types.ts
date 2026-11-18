@@ -78,6 +78,22 @@ export interface CreateProjectOptions {
   githubUrl?: string
 }
 
+/** Editable fields of a project. */
+export interface UpdateProjectOptions {
+  name: string
+  localPath: string
+  githubUrl?: string
+}
+
+/** Editable fields of an agent tab (model/effort/mode apply on next launch/resume). */
+export interface UpdateTabOptions {
+  title: string
+  task: string
+  model: ModelAlias
+  effort: EffortLevel
+  permissionMode: PermissionMode
+}
+
 // ---- IPC channel names (single source of truth) --------------------------
 
 export const IPC = {
@@ -85,10 +101,12 @@ export const IPC = {
   projectList: 'project:list',
   projectCreate: 'project:create',
   projectRemove: 'project:remove',
+  projectUpdate: 'project:update',
   tabList: 'tab:list',
   tabCreate: 'tab:create',
   tabResume: 'tab:resume',
   tabClose: 'tab:close',
+  tabUpdate: 'tab:update',
   tabInput: 'tab:input',
   tabResize: 'tab:resize',
   dialogPickFolder: 'dialog:pickFolder',

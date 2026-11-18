@@ -3,6 +3,8 @@ import {
   IPC,
   type CreateProjectOptions,
   type CreateTabOptions,
+  type UpdateProjectOptions,
+  type UpdateTabOptions,
   type Project,
   type Tab,
   type TabStatus
@@ -23,7 +25,11 @@ const api = {
   removeProject: (projectId: string): Promise<void> =>
     ipcRenderer.invoke(IPC.projectRemove, projectId),
 
+  updateProject: (projectId: string, opts: UpdateProjectOptions): Promise<{ project: Project; tabs: Tab[] }> =>
+    ipcRenderer.invoke(IPC.projectUpdate, projectId, opts),
+
   // --- Tabs ---
+  updateTab: (tabId: string, opts: UpdateTabOptions): Promise<Tab> => ipcRenderer.invoke(IPC.tabUpdate, tabId, opts),
   listTabs: (projectId?: string): Promise<Tab[]> => ipcRenderer.invoke(IPC.tabList, projectId),
   createTab: (opts: CreateTabOptions): Promise<Tab> => ipcRenderer.invoke(IPC.tabCreate, opts),
   resumeTab: (tabId: string): Promise<Tab> => ipcRenderer.invoke(IPC.tabResume, tabId),

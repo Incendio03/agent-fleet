@@ -28,6 +28,8 @@ export default function App(): JSX.Element {
 
   const [showNewProject, setShowNewProject] = useState(false)
   const [showNewTab, setShowNewTab] = useState(false)
+  const [editProjectId, setEditProjectId] = useState<string | null>(null)
+  const [editTabId, setEditTabId] = useState<string | null>(null)
   const [browserOpen, setBrowserOpen] = useState(() => readPref('fleet.browser.open', '0') === '1')
   const [browserWidth, setBrowserWidth] = useState(() => Number(readPref('fleet.browser.width', '520')) || 520)
   const [dragging, setDragging] = useState(false)
@@ -72,7 +74,7 @@ export default function App(): JSX.Element {
 
   return (
     <div className={`app ${dragging ? 'dragging' : ''}`}>
-      <ProjectSidebar onNewProject={() => setShowNewProject(true)} />
+      <ProjectSidebar onNewProject={() => setShowNewProject(true)} onEditProject={setEditProjectId} />
 
       <main className="workspace">
         {loading ? (
@@ -88,6 +90,7 @@ export default function App(): JSX.Element {
             <TabBar
               projectId={activeProject.id}
               onNewTab={() => setShowNewTab(true)}
+              onEditTab={setEditTabId}
               browserOpen={browserOpen}
               onToggleBrowser={toggleBrowser}
             />
@@ -141,6 +144,20 @@ export default function App(): JSX.Element {
       {showNewProject && <NewProjectDialog onClose={() => setShowNewProject(false)} />}
       {showNewTab && activeProject && (
         <NewTabDialog projectId={activeProject.id} onClose={() => setShowNewTab(false)} />
+      )}
+
+      {editProjectId && (
+        <NewProjectDialog
+          project={projects.find((p) => p.id === editProjectId)}
+          onClose={() => setEditProjectId(null)}
+        />
+      )}
+      {editTabId && tabs.some((t) => t.id === editTabId) && (
+        <NewTabDialog
+          projectId={tabs.find((t) => t.id === editTabId)!.projectId}
+          tab={tabs.find((t) => t.id === editTabId)}
+          onClose={() => setEditTabId(null)}
+        />
       )}
 
       <ImageViewer />
