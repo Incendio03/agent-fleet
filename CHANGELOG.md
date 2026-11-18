@@ -56,6 +56,11 @@ The running version is shown in the app's sidebar header.
   (capped at 8s), then fades into the app, instead of flashing the Welcome screen
   and then popping projects in.
 
+### Fixed
+- Codex on Windows: "Cannot create process, error code: 193" on sign-in/launch, and
+  missing version / "Not signed in". `where codex` lists npm's extensionless shell
+  script first; commands now prefer a real .exe and run npm .cmd shims via Node.
+- Sign-in / agent status errors are shown instead of failing silently.
 ## [0.3.2] — 2026-11-19
 ### Fixed
 - Resumed/new agents drew at 80 columns (stray lines, prompt box mid-screen): the

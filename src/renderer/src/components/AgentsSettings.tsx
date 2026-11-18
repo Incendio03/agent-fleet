@@ -23,6 +23,12 @@ export function AgentsSettings(): JSX.Element {
       setAgents(list)
       const all = await Promise.all(list.map((a) => window.fleet.agentStatus(a.id)))
       setStatus(Object.fromEntries(all.map((s) => [s.id, s])))
+    } catch (e) {
+      useStore.getState().setError(
+        /No handler registered/i.test((e as Error).message)
+          ? 'Agent status needs a full app restart (stop and re-run npm run dev) to load the new backend code.'
+          : `Could not check agents: ${(e as Error).message}`
+      )
     } finally {
       setChecking(false)
     }
@@ -36,9 +42,23 @@ export function AgentsSettings(): JSX.Element {
     return window.fleet.onTabExit((id) => { if (id === loginFor.sid) void refresh() })
   }, [loginFor, refresh])
 
+  const setError = useStore((s) => s.setError)
+
   const signIn = async (id: AgentKind): Promise<void> => {
-    const sid = await window.fleet.agentLogin(id)
-    setLoginFor({ id, sid })
+    setBusy(id)
+    try {
+      const sid = await window.fleet.agentLogin(id)
+      setLoginFor({ id, sid })
+    } catch (e) {
+      const msg = (e as Error).message
+      setError(
+        /No handler registered/i.test(msg)
+          ? 'Sign-in needs a full app restart (stop and re-run npm run dev) to load the new backend code.'
+          : `Could not start sign-in: ${msg}`
+      )
+    } finally {
+      setBusy(null)
+    }
   }
 
   const signOut = async (id: AgentKind): Promise<void> => {
@@ -125,7 +145,7 @@ export function AgentsSettings(): JSX.Element {
                           <button className="btn sm ghost" disabled={busy === a.id} onClick={() => void signOut(a.id)}>Sign out</button>
                         </>
                       ) : (
-                        <button className="btn sm primary" onClick={() => void signIn(a.id)}>Sign in</button>
+                        <button className="btn sm primary" disabled={busy === a.id} onClick={() => void signIn(a.id)}>{busy === a.id ? "Starting…" : "Sign in"}</button>
                       )}
                     </div>
                   )}

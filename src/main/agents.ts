@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
 import type { AgentInfo, AgentKind, AgentStatus, Tab } from '@shared/types'
 import { buildClaudeCommand, detectClaude, type SpawnCommand } from './claude'
@@ -15,14 +15,45 @@ const run = promisify(execFile)
  * not hard-coded, so new CLI versions/models show up automatically.
  */
 
-async function which(cmd: string): Promise<string | null> {
+/** How to run a CLI: an executable plus any leading args (e.g. node + script). */
+export interface ResolvedCommand {
+  file: string
+  prefix: string[]
+}
+
+async function lookup(cmd: string): Promise<string[]> {
   try {
     const { stdout } = await run(process.platform === 'win32' ? 'where' : 'which', [cmd], { windowsHide: true })
-    const first = stdout.split(/\r?\n/).map((s) => s.trim()).find(Boolean)
-    return first && existsSync(first) ? first : null
+    return stdout.split(/\r?\n/).map((s) => s.trim()).filter((p) => p && existsSync(p))
   } catch {
-    return null
+    return []
   }
+}
+
+/**
+ * Find a runnable command. On Windows, `where` can list an extensionless npm
+ * shell script FIRST (e.g. ...\npm\codex), which Windows can't execute (error
+ * 193). So prefer a real .exe; for an npm .cmd shim, run its JS entry point
+ * with Node directly (avoids cmd.exe argument quoting); else cmd.exe /c.
+ */
+async function resolveCommand(cmd: string): Promise<ResolvedCommand | null> {
+  const hits = await lookup(cmd)
+  if (process.platform !== 'win32') return hits[0] ? { file: hits[0], prefix: [] } : null
+  const exe = hits.find((h) => /\.exe$/i.test(h))
+  if (exe) return { file: exe, prefix: [] }
+  const shim = hits.find((h) => /\.(cmd|bat)$/i.test(h))
+  if (!shim) return null
+  try {
+    const m = /"%dp0%\\([^"]+\.js)"/i.exec(await readFile(shim, 'utf8'))
+    const node = (await lookup('node')).find((h) => /\.exe$/i.test(h))
+    if (m && node) {
+      const script = join(dirname(shim), m[1])
+      if (existsSync(script)) return { file: node, prefix: [script] }
+    }
+  } catch {
+    /* fall through */
+  }
+  return { file: process.env.ComSpec || 'cmd.exe', prefix: ['/d', '/c', shim] }
 }
 
 /** Claude Code: efforts from `--effort <level> (low, medium, ...)`, models from the --model help aliases. */
@@ -48,7 +79,7 @@ async function detectClaudeAgent(): Promise<AgentInfo> {
 
 /** Codex: models + per-model efforts from ~/.codex/models_cache.json (kept fresh by Codex itself). */
 async function detectCodexAgent(): Promise<AgentInfo> {
-  const path = await which('codex')
+  const path = await resolveCommand('codex')
   const base: AgentInfo = {
     id: 'codex',
     label: 'Codex',
@@ -86,13 +117,13 @@ export async function detectAgents(refresh = false): Promise<AgentInfo[]> {
 
 export const agentOf = (tab: Tab): AgentKind => tab.agent ?? 'claude'
 
-/** Resolved executable for an agent CLI, or null if it isn't installed. */
-export async function agentPath(id: AgentKind): Promise<string | null> {
+/** How to run an agent CLI, or null if it isn't installed. */
+export async function agentPath(id: AgentKind): Promise<ResolvedCommand | null> {
   if (id === 'claude') {
     const caps = await detectClaude()
-    return caps.helpText ? caps.path : null
+    return caps.helpText ? { file: caps.path, prefix: [] } : null
   }
-  return which('codex')
+  return resolveCommand('codex')
 }
 
 /** Commands to sign in / out, and how to install, per agent. */
@@ -118,11 +149,11 @@ export async function agentStatus(id: AgentKind): Promise<AgentStatus> {
 }
 
 async function rawStatus(id: AgentKind): Promise<AgentStatus> {
-  const path = await agentPath(id)
-  if (!path) return { id, installed: false, loggedIn: false }
+  const cmd = await agentPath(id)
+  if (!cmd) return { id, installed: false, loggedIn: false }
   const exec = async (args: string[]): Promise<string> => {
     try {
-      const { stdout, stderr } = await run(path, args, { windowsHide: true, timeout: 15_000 })
+      const { stdout, stderr } = await run(cmd.file, [...cmd.prefix, ...args], { windowsHide: true, timeout: 15_000 })
       return `${stdout}${stderr}`.trim()
     } catch (err) {
       const e = err as { stdout?: string; stderr?: string }
@@ -153,9 +184,9 @@ async function rawStatus(id: AgentKind): Promise<AgentStatus> {
 
 /** Sign out (non-interactive). */
 export async function agentLogout(id: AgentKind): Promise<void> {
-  const path = await agentPath(id)
-  if (!path) throw new Error('Agent is not installed.')
-  await run(path, AGENT_AUTH[id].logout, { windowsHide: true, timeout: 15_000 }).catch(() => {})
+  const cmd = await agentPath(id)
+  if (!cmd) throw new Error('Agent is not installed.')
+  await run(cmd.file, [...cmd.prefix, ...AGENT_AUTH[id].logout], { windowsHide: true, timeout: 15_000 }).catch(() => {})
 }
 
 /** Build the spawn command for a tab with whichever agent CLI it uses. */
@@ -164,16 +195,18 @@ export async function buildAgentCommand(
   opts: { resume?: boolean; sessionName?: string; appendSystemPrompt?: string }
 ): Promise<SpawnCommand> {
   if (agentOf(tab) === 'codex') {
-    const file = (await which('codex')) ?? 'codex'
-    const args: string[] = []
+    const cmd = await resolveCommand('codex')
+    if (!cmd) throw new Error('Codex is not installed. See Settings → Agents.')
+    const args: string[] = [...cmd.prefix]
     if (opts.resume) args.push('resume', '--last') // most recent Codex session (per folder)
     if (tab.model) args.push('-m', tab.model)
-    if (tab.effort) args.push('-c', `model_reasoning_effort="${tab.effort}"`)
+    // Bare value: not valid TOML, so Codex takes it as a literal string (no quoting to mangle).
+    if (tab.effort) args.push('-c', `model_reasoning_effort=${tab.effort}`)
     // Map our interaction modes onto Codex approval policies (sandbox stays on).
     const approval = tab.permissionMode === 'default' ? 'untrusted' : tab.permissionMode === 'acceptEdits' ? 'on-request' : 'never'
     args.push('-a', approval, '-s', 'workspace-write')
     if (!opts.resume && tab.task.trim()) args.push(tab.task.trim())
-    return { file, args }
+    return { file: cmd.file, args }
   }
   return buildClaudeCommand({
     projectId: tab.projectId,

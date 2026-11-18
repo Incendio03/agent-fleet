@@ -212,11 +212,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   // in a dialog (it may open the browser and/or ask for input). Returns the
   // terminal's session id. The CLI stores the credentials itself.
   ipcMain.handle(IPC.agentLogin, async (_e, id: AgentKind): Promise<string> => {
-    const path = await agentPath(id)
-    if (!path) throw new Error('Agent is not installed.')
+    const cmd = await agentPath(id)
+    if (!cmd) throw new Error('Agent is not installed.')
     const sid = `auth:${id}`
     sessionManager.kill(sid)
-    sessionManager.spawnCommand(sid, path, AGENT_AUTH[id].login, homedir(), 90, 20)
+    sessionManager.spawnCommand(sid, cmd.file, [...cmd.prefix, ...AGENT_AUTH[id].login], homedir(), 90, 20)
     return sid
   })
 
