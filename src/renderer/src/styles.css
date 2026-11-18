@@ -787,7 +787,7 @@ body {
 .composer { padding: 8px 12px 6px; background: var(--bg); border-top: 1px solid var(--border); flex-shrink: 0; }
 .composer-box {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: 8px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -828,3 +828,40 @@ body {
 .composer-send:disabled { background: var(--bg-elev2); color: var(--text-dim); cursor: default; }
 .composer-foot { display: flex; align-items: center; gap: 12px; padding: 5px 2px 0; flex-wrap: wrap; }
 .composer-hint { margin-left: auto; font-size: 11px; color: var(--text-dim); }
+
+.composer-row { display: flex; align-items: flex-end; gap: 8px; }
+.composer-files { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.composer-file {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.composer-file.image img {
+  display: block;
+  height: 64px;
+  max-width: 140px;
+  object-fit: cover;
+  border-radius: 7px;
+  cursor: zoom-in;
+}
+.composer-file-name { display: inline-block; padding: 8px 26px 8px 10px; font-size: 12px; color: var(--text); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-file-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-elev2);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.composer-file:hover .composer-file-remove { display: inline-flex; }
+.composer-file-remove:hover { background: var(--red); color: #0d0d10; border-color: var(--red); }

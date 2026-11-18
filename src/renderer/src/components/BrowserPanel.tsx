@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
+import { attachToComposer } from './Composer'
 
 /** The subset of Electron's WebviewTag API we use (the renderer has no electron types). */
 interface WebviewEl extends HTMLElement {
@@ -189,10 +190,10 @@ function SnipOverlay({ webviewId, onDone }: { webviewId: number; onDone: () => v
 
   const activeProjectId = useStore((s) => s.activeProjectId)
   const activeTabId = useStore((s) => s.activeTabId)
-  const liveTabIds = useStore((s) => s.liveTabIds)
   const tabTitle = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.title)
   const setError = useStore((s) => s.setError)
-  const canSend = activeProjectId != null && activeTabId != null && liveTabIds.has(activeTabId)
+  // Attaching only needs an agent tab; you review and send from its message box.
+  const canSend = activeProjectId != null && activeTabId != null
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onDone() }
@@ -238,10 +239,16 @@ function SnipOverlay({ webviewId, onDone }: { webviewId: number; onDone: () => v
       const ctx = c.getContext('2d')!
       ctx.drawImage(img, 0, 0)
       drawMark(ctx, { x: box.x * k, y: box.y * k, w: box.w * k, h: box.h * k }, note.trim(), k, c.height)
-      const path = await window.fleet.saveShot(activeProjectId!, c.toDataURL('image/png'))
-      // Typed into the prompt without Enter, so you can keep writing.
+      const png = c.toDataURL('image/png')
+      const path = await window.fleet.saveShot(activeProjectId!, png)
+      // Attach to the agent's message box (not straight into the terminal) so
+      // you can review, add to it, and send when ready.
       const text = note.trim()
-      window.fleet.sendInput(activeTabId!, text ? `${text} (see red box in "${path}") ` : `"${path}" `)
+      attachToComposer(
+        activeTabId!,
+        { path, name: path.split(/[\\/]/).pop() || path, preview: png },
+        text ? `${text} (see the red box in the attached screenshot)` : undefined
+      )
       onDone()
     } catch (e) {
       setError(`Annotate failed: ${(e as Error).message}`)
@@ -270,7 +277,7 @@ function SnipOverlay({ webviewId, onDone }: { webviewId: number; onDone: () => v
             value={note}
             onChange={(e) => setNote(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void send() }}
-            placeholder="Add a note (optional), Enter to send"
+            placeholder="Add a note (optional), Enter to attach"
           />
           <div className="snip-actions">
             <button className="btn sm ghost" onClick={onDone}>Cancel</button>
@@ -278,9 +285,9 @@ function SnipOverlay({ webviewId, onDone }: { webviewId: number; onDone: () => v
               className="btn sm outline"
               disabled={!canSend || sending}
               onClick={() => void send()}
-              title={canSend ? '' : 'Select a running agent tab first'}
+              title={canSend ? 'Attach to the message box, then review and send' : 'Open an agent tab first'}
             >
-              {sending ? 'Sending…' : canSend ? `Send to ${tabTitle}` : 'No running agent'}
+              {sending ? 'Attaching…' : canSend ? `Attach to ${tabTitle}` : 'No agent tab'}
             </button>
           </div>
         </div>

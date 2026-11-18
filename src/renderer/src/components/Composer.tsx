@@ -3,8 +3,34 @@ import type { Tab } from '@shared/types'
 import { useStore } from '../store/useStore'
 import { AgentBar } from './AgentBar'
 
-/** Unsent text per tab, kept while you switch tabs (not persisted). */
-const drafts = new Map<string, string>()
+/** A file attached to the next message: shown as a chip, sent as its path. */
+export interface Attachment {
+  path: string
+  name: string
+  /** Data URL for image thumbnails; undefined for other files. */
+  preview?: string
+}
+
+/** Unsent text + attachments per tab, kept while you switch tabs (not persisted). */
+const drafts = new Map<string, { text: string; files: Attachment[] }>()
+
+/** Mounted composers, so other parts of the UI can add to a tab's draft. */
+const listeners = new Map<string, () => void>()
+
+/**
+ * Add an attachment (and optionally some text) to a tab's message draft —
+ * e.g. from Annotate — so you can review it before sending.
+ */
+export function attachToComposer(tabId: string, file: Attachment, text?: string): void {
+  const d = drafts.get(tabId) ?? { text: '', files: [] }
+  const files = d.files.some((f) => f.path === file.path) ? d.files : [...d.files, file]
+  const nextText = text ? (d.text.trim() ? `${d.text.replace(/\s+$/, '')} ${text}` : text) : d.text
+  drafts.set(tabId, { text: nextText, files })
+  listeners.get(tabId)?.()
+}
+
+const IMAGE_RE =/\.(png|jpe?g|gif|webp)$/i
+const baseName = (p: string): string => p.split(/[\\/]/).pop() || p
 
 const ESC = '\x1b'
 // Keys forwarded to the agent when the box is EMPTY, so menus stay usable.
@@ -22,7 +48,9 @@ const NAV_KEYS: Record<string, string> = {
  * Enter and Shift+Tab do too, for answering the agent's menus.
  */
 export function Composer({ tab }: { tab: Tab }): JSX.Element {
-  const [text, setText] = useState(() => drafts.get(tab.id) ?? '')
+  const [text, setText] = useState(() => drafts.get(tab.id)?.text ?? '')
+  const [files, setFiles] = useState<Attachment[]>(() => drafts.get(tab.id)?.files ?? [])
+  const openImage = useStore((s) => s.openImage)
   const ref = useRef<HTMLTextAreaElement>(null)
   const isLive = useStore((s) => s.liveTabIds.has(tab.id))
   const projectId = useStore((s) => s.activeProjectId)
@@ -31,8 +59,28 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
 
   const update = (v: string): void => {
     setText(v)
-    drafts.set(tab.id, v)
+    drafts.set(tab.id, { text: v, files })
   }
+  const setAttachments = (next: Attachment[]): void => {
+    setFiles(next)
+    drafts.set(tab.id, { text, files: next })
+  }
+  const attach = (added: Attachment[]): void => {
+    const known = new Set(files.map((f) => f.path))
+    setAttachments([...files, ...added.filter((a) => !known.has(a.path))])
+    ref.current?.focus()
+  }
+
+  // Pick up attachments/text added from elsewhere (e.g. Annotate).
+  useEffect(() => {
+    listeners.set(tab.id, () => {
+      const d = drafts.get(tab.id)
+      setText(d?.text ?? '')
+      setFiles(d?.files ?? [])
+      requestAnimationFrame(() => ref.current?.focus())
+    })
+    return () => { listeners.delete(tab.id) }
+  }, [tab.id])
 
   // Focus the box when this tab is shown.
   useEffect(() => {
@@ -50,9 +98,13 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
 
   const sendRaw = (data: string): void => window.fleet.sendInput(tab.id, data)
 
+  const hasContent = text.trim().length > 0 || files.length > 0
+
   const send = (): void => {
-    const msg = text.replace(/\r\n?/g, '\n').replace(/\s+$/, '')
-    if (!msg.trim() || !isLive) return
+    if (!hasContent || !isLive) return
+    // Attachments travel as quoted paths after the text; the agent opens them.
+    const paths = files.map((f) => `"${f.path}"`).join(' ')
+    const msg = [text.replace(/\r\n?/g, '\n').replace(/\s+$/, ''), paths].filter(Boolean).join(' ')
     if (msg.includes('\n')) {
       // Bracketed paste: the agent receives the newlines as text, not as Enter.
       sendRaw(`${ESC}[200~${msg}${ESC}[201~`)
@@ -61,7 +113,9 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
     }
     // Submit separately, a beat later, so it isn't swallowed as part of the paste.
     setTimeout(() => sendRaw('\r'), 60)
-    update('')
+    setText('')
+    setFiles([])
+    drafts.delete(tab.id)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -80,11 +134,17 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault()
-      if (text.trim()) send()
+      if (hasContent) send()
       else if (isLive) sendRaw('\r') // empty box: confirm the agent's highlighted option
       return
     }
-    if (!text && isLive) {
+    // Backspace in an empty box removes the last attachment.
+    if (e.key === 'Backspace' && !text && files.length) {
+      e.preventDefault()
+      setAttachments(files.slice(0, -1))
+      return
+    }
+    if (!text && !files.length && isLive) {
       if (e.key === 'Tab' && e.shiftKey) {
         e.preventDefault()
         sendRaw(`${ESC}[Z`) // Shift+Tab: Claude Code cycles its mode
@@ -98,26 +158,13 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
     }
   }
 
-  /** Insert text at the cursor (replacing any selection). */
-  const insert = (snippet: string): void => {
-    const el = ref.current
-    if (!el) return update(text + snippet)
-    const start = el.selectionStart ?? text.length
-    const end = el.selectionEnd ?? text.length
-    const next = text.slice(0, start) + snippet + text.slice(end)
-    update(next)
-    requestAnimationFrame(() => {
-      el.selectionStart = el.selectionEnd = start + snippet.length
-      el.focus()
-    })
-  }
-
   const pasteClipboardImage = async (): Promise<void> => {
     try {
       const dataUrl = await window.fleet.readClipboardImage()
       if (!dataUrl) return
       if (!projectId) return setError('Select a project before pasting images.')
-      insert(`"${await window.fleet.saveShot(projectId, dataUrl)}" `)
+      const path = await window.fleet.saveShot(projectId, dataUrl)
+      attach([{ path, name: baseName(path), preview: dataUrl }])
     } catch (err) {
       setError(`Could not paste image: ${(err as Error).message}`)
     }
@@ -143,22 +190,32 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
         return setError(`Nothing to paste: the clipboard has no text or image${formats.length ? ` (formats: ${formats.join(', ')})` : ''}.`)
       }
       if (!projectId) return setError('Select a project before pasting images.')
-      const paths: string[] = []
-      for (const d of dataUrls) paths.push(await window.fleet.saveShot(projectId, d))
-      insert(paths.map((p) => `"${p}"`).join(' ') + ' ')
+      const added: Attachment[] = []
+      for (const d of dataUrls) {
+        const path = await window.fleet.saveShot(projectId, d)
+        added.push({ path, name: baseName(path), preview: d })
+      }
+      attach(added)
     } catch (err) {
       setError(`Could not paste image: ${(err as Error).message}`)
     }
   }
 
-  // Drop files: insert their paths (quoted) so the agent can open them.
-  const onDrop = (e: React.DragEvent): void => {
+  // Drop files: attach them (images get a thumbnail).
+  const onDrop = async (e: React.DragEvent): Promise<void> => {
     e.preventDefault()
     setDragOver(false)
     const paths = Array.from(e.dataTransfer.files)
       .map((f) => window.fleet.pathForFile(f))
       .filter(Boolean)
-    if (paths.length) insert(paths.map((p) => `"${p}"`).join(' ') + ' ')
+    const added = await Promise.all(
+      paths.map(async (path): Promise<Attachment> => ({
+        path,
+        name: baseName(path),
+        preview: IMAGE_RE.test(path) ? await window.fleet.readImage(path).catch(() => undefined) : undefined
+      }))
+    )
+    if (added.length) attach(added)
   }
 
   return (
@@ -167,8 +224,30 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
         className={`composer-box ${dragOver ? 'drag' : ''} ${isLive ? '' : 'disabled'}`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
+        onDrop={(e) => void onDrop(e)}
       >
+        {files.length > 0 && (
+          <div className="composer-files">
+            {files.map((f) => (
+              <div key={f.path} className={`composer-file ${f.preview ? 'image' : ''}`} title={f.path}>
+                {f.preview ? (
+                  <img src={f.preview} alt={f.name} onClick={() => void openImage(f.path)} />
+                ) : (
+                  <span className="composer-file-name">📄 {f.name}</span>
+                )}
+                <button
+                  className="composer-file-remove"
+                  onClick={() => setAttachments(files.filter((x) => x.path !== f.path))}
+                  title="Remove"
+                  aria-label={`Remove ${f.name}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="composer-row">
         <textarea
           ref={ref}
           className="composer-input"
@@ -182,7 +261,7 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
         />
         <button
           className="composer-send"
-          disabled={!isLive || !text.trim()}
+          disabled={!isLive || !hasContent}
           onClick={send}
           title="Send (Enter)"
           aria-label="Send"
@@ -191,6 +270,7 @@ export function Composer({ tab }: { tab: Tab }): JSX.Element {
             <path d="M12 19V5M5 12l7-7 7 7" />
           </svg>
         </button>
+        </div>
       </div>
       <div className="composer-foot">
         <AgentBar tab={tab} />
