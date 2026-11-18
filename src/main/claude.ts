@@ -77,7 +77,8 @@ export interface SpawnCommand {
   args: string[]
 }
 
-export interface BuildOptions extends CreateTabOptions {
+// `isolate` is a worktree concern, irrelevant to the launch command.
+export interface BuildOptions extends Omit<CreateTabOptions, 'isolate'> {
   /** Stable Claude session id for this tab (for --session-id / --resume). */
   sessionId: string
   /** When true, re-attach the saved conversation instead of starting fresh. */

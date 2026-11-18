@@ -79,13 +79,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const project = projects.find((p) => p.id === opts.projectId)
     if (!project) throw new Error('Project not found')
 
-    // If the project folder is a git repo, give each agent its own isolated
-    // worktree + branch. Otherwise (e.g. a folder holding several repos), the
-    // agent runs directly in the project folder — no worktree, so closing the
-    // tab later must NOT delete it.
+    // Worktree isolation is opt-in: only when the user asked for it AND the
+    // project is a git repo. Otherwise the agent runs directly in the project
+    // folder — and closing the tab must NOT delete that folder.
     let branch = ''
     let worktreePath = project.localPath
-    if (await isGitRepo(project.localPath)) {
+    if (opts.isolate && (await isGitRepo(project.localPath))) {
       const wt = await createWorktree(
         project.localPath,
         opts.title,

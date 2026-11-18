@@ -24,6 +24,16 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-18
+### Changed
+- **Tabs are now agents/roles, not one-off tasks.** The new-agent dialog asks for
+  an **agent name/role** (e.g. "Software Engineer", "Project Manager") with
+  optional role instructions, instead of a required task. The persona persists
+  across restarts via session-resume.
+- **Removed forced git worktrees on tab creation.** Agents now run directly in
+  the project folder and create branches themselves when you ask. (Worktree
+  isolation remains available in the backend via an opt-in `isolate` flag.)
+
 ## [0.1.0] — 2026-11-18
 First working version.
 
@@ -47,5 +57,6 @@ First working version.
 - **Local-first persistence** — projects/tabs saved to a local JSON store; the
   app works fully offline when Supabase isn't configured.
 
-[Unreleased]: https://github.com/Incendio03/agent-fleet/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Incendio03/agent-fleet/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Incendio03/agent-fleet/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Incendio03/agent-fleet/releases/tag/v0.1.0

@@ -57,11 +57,18 @@ export interface Tab {
 /** Options the UI sends when asking the backend to spawn a new agent tab. */
 export interface CreateTabOptions {
   projectId: string
+  /** The agent's name/role, e.g. "Software Engineer". Used as the tab label. */
   title: string
+  /** Optional role / initial instructions to seed the agent with (may be empty). */
   task: string
   model: ModelAlias
   effort: EffortLevel
   permissionMode: PermissionMode
+  /**
+   * When true (and the project is a git repo), give this agent its own git
+   * worktree + branch. When false, it runs directly in the project folder.
+   */
+  isolate: boolean
 }
 
 /** Options for creating a new project. */

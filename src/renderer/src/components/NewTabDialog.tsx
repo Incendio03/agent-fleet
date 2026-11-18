@@ -35,12 +35,22 @@ export function NewTabDialog({ projectId, onClose }: { projectId: string; onClos
   const submit = async (): Promise<void> => {
     setErr(null)
     if (!title.trim()) {
-      setErr('Give the task a short title (used for the branch name).')
+      setErr('Give the agent a name (e.g. "Software Engineer").')
       return
     }
     setBusy(true)
     try {
-      await createTab({ projectId, title: title.trim(), task: task.trim(), model, effort, permissionMode })
+      // Agents run directly in the project folder; they create branches
+      // themselves when asked, so no worktree is forced here.
+      await createTab({
+        projectId,
+        title: title.trim(),
+        task: task.trim(),
+        model,
+        effort,
+        permissionMode,
+        isolate: false
+      })
       onClose()
     } catch (e) {
       setErr((e as Error).message)
@@ -52,17 +62,33 @@ export function NewTabDialog({ projectId, onClose }: { projectId: string; onClos
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <h2>New agent tab</h2>
-        <p className="modal-sub">A fresh git worktree + branch will be created so this agent is isolated.</p>
+        <h2>New agent</h2>
+        <p className="modal-sub">
+          An agent that works in this project. It runs in the project folder — tell
+          it to create a branch whenever you want one.
+        </p>
 
-        <label>Task title</label>
-        <input value={title} placeholder="add-login-page" onChange={(e) => setTitle(e.target.value)} />
+        <label>Agent name / role</label>
+        <input
+          value={title}
+          list="agent-role-suggestions"
+          placeholder="Software Engineer"
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <datalist id="agent-role-suggestions">
+          <option value="Software Engineer" />
+          <option value="Project Manager" />
+          <option value="Code Reviewer" />
+          <option value="QA / Tester" />
+          <option value="DevOps Engineer" />
+          <option value="Technical Writer" />
+        </datalist>
 
-        <label>Task prompt (what should the agent do?)</label>
+        <label>Role / instructions (optional)</label>
         <textarea
           value={task}
           rows={4}
-          placeholder="Add a login page with email + password using our existing auth helpers."
+          placeholder="You are my senior software engineer on this project. Help me plan, build, and debug features. Ask before large changes."
           onChange={(e) => setTask(e.target.value)}
         />
 
