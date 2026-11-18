@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build output
+out/
+dist/
+*.tsbuildinfo
+
+# local env / secrets — never commit real keys
+.env
+.env.local
+.env.*.local
+
+# local app data (sqlite fallback, logs)
+.data/
+*.log
+
+# worktrees created at runtime live outside the repo, but ignore any stray ones
+.worktrees/
+
+# OS
+.DS_Store
+Thumbs.db
