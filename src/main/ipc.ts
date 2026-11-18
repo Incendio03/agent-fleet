@@ -45,10 +45,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(
     IPC.projectCreate,
     async (_e, opts: CreateProjectOptions): Promise<Project> => {
-      if (!(await isGitRepo(opts.localPath))) {
-        throw new Error(
-          `"${opts.localPath}" is not a git repository. Pick a folder that contains a git repo.`
-        )
+      // Any existing folder is allowed — it can be a single repo OR a container
+      // of several repos. Worktree isolation only kicks in if it's a git repo.
+      if (!existsSync(opts.localPath)) {
+        throw new Error(`Folder "${opts.localPath}" does not exist.`)
       }
       const project: Project = {
         id: randomUUID(),
@@ -79,12 +79,21 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const project = projects.find((p) => p.id === opts.projectId)
     if (!project) throw new Error('Project not found')
 
-    // Each agent gets its own isolated worktree + branch.
-    const { branch, worktreePath } = await createWorktree(
-      project.localPath,
-      opts.title,
-      process.env.FLEET_WORKTREE_ROOT || undefined
-    )
+    // If the project folder is a git repo, give each agent its own isolated
+    // worktree + branch. Otherwise (e.g. a folder holding several repos), the
+    // agent runs directly in the project folder — no worktree, so closing the
+    // tab later must NOT delete it.
+    let branch = ''
+    let worktreePath = project.localPath
+    if (await isGitRepo(project.localPath)) {
+      const wt = await createWorktree(
+        project.localPath,
+        opts.title,
+        process.env.FLEET_WORKTREE_ROOT || undefined
+      )
+      branch = wt.branch
+      worktreePath = wt.worktreePath
+    }
 
     const tab: Tab = {
       id: randomUUID(),
@@ -133,7 +142,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       if (tab) {
         const projects = await store.listProjects()
         const project = projects.find((p) => p.id === tab.projectId)
-        if (project) {
+        // Only clean up a worktree we created. If the tab ran directly in the
+        // project folder (non-git project), leave the user's folder untouched.
+        if (project && tab.worktreePath !== project.localPath) {
           await removeWorktree(project.localPath, tab.worktreePath, tab.branch, deleteBranch).catch(
             (err) => console.error('worktree cleanup failed:', err)
           )
@@ -155,7 +166,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(IPC.dialogPickFolder, async (): Promise<string | null> => {
     const win = getWindow()
     const res = await dialog.showOpenDialog(win!, {
-      title: 'Select a project folder (must be a git repo)',
+      title: 'Select a project folder',
       properties: ['openDirectory']
     })
     return res.canceled ? null : res.filePaths[0]

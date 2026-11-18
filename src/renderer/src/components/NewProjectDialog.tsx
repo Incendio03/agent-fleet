@@ -40,7 +40,10 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }): JSX.Elem
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>New project</h2>
-        <p className="modal-sub">Point to a folder that already contains a git repository.</p>
+        <p className="modal-sub">
+          Pick any folder — a single git repo (agents get isolated branches) or a
+          folder holding several repos (agents run directly in it).
+        </p>
 
         <label>Folder</label>
         <div className="row">

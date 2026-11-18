@@ -12,15 +12,17 @@ const STATUS_LABEL: Record<TabStatus, string> = {
 /** Top bar of tabs for the active project, plus the new-tab button. */
 export function TabBar({ projectId, onNewTab }: { projectId: string; onNewTab: () => void }): JSX.Element {
   const tabs = useStore((s) => s.tabs.filter((t) => t.projectId === projectId))
+  const project = useStore((s) => s.projects.find((p) => p.id === projectId))
   const activeTabId = useStore((s) => s.activeTabId)
   const selectTab = useStore((s) => s.selectTab)
   const closeTab = useStore((s) => s.closeTab)
 
   const onClose = async (tab: Tab): Promise<void> => {
-    const ok = confirm(
-      `Close "${tab.title}"?\n\nThis stops the agent and removes its worktree folder.\nBranch "${tab.branch}" is kept so you don't lose committed work.`
-    )
-    if (ok) await closeTab(tab.id, false)
+    const isolated = project != null && tab.worktreePath !== project.localPath
+    const msg = isolated
+      ? `Close "${tab.title}"?\n\nThis stops the agent and removes its worktree folder.\nBranch "${tab.branch}" is kept so you don't lose committed work.`
+      : `Close "${tab.title}"?\n\nThis stops the agent. Your project folder is left untouched.`
+    if (confirm(msg)) await closeTab(tab.id, false)
   }
 
   return (
