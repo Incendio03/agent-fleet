@@ -171,6 +171,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return res.canceled ? null : res.filePaths[0]
   })
 
+  // Persist cloud-restored projects/tabs into the local store so the backend
+  // and the UI agree (prevents "Project not found" on tab:create).
+  ipcMain.handle(
+    IPC.storeImport,
+    async (_e, payload: { projects?: Project[]; tabs?: Tab[] }): Promise<void> => {
+      await store.importProjects(payload.projects ?? [])
+      await store.importTabs(payload.tabs ?? [])
+    }
+  )
+
   // --- Auth / system --------------------------------------------------------
   // Open the GitHub OAuth page in the user's real browser (desktop apps can't
   // do the redirect dance inside the app window).

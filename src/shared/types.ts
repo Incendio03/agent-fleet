@@ -94,6 +94,7 @@ export const IPC = {
   dialogPickFolder: 'dialog:pickFolder',
   openExternal: 'app:openExternal',
   cloneRepo: 'project:clone',
+  storeImport: 'store:import',
   // main -> renderer (events, pushed from backend)
   tabData: 'tab:data', // terminal output chunk
   tabExit: 'tab:exit', // process exited

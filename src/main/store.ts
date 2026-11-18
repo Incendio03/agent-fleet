@@ -91,6 +91,31 @@ class Store {
   }
 
   /**
+   * Insert-or-update projects/tabs (by id) into the local store. Used to
+   * persist cloud-restored data so the backend store stays in sync with what
+   * the UI shows — otherwise tab:create can't find a cloud-only project.
+   */
+  async importProjects(projects: Project[]): Promise<void> {
+    await this.ensureLoaded()
+    for (const p of projects) {
+      const i = this.data.projects.findIndex((x) => x.id === p.id)
+      if (i >= 0) this.data.projects[i] = p
+      else this.data.projects.push(p)
+    }
+    await this.persist()
+  }
+
+  async importTabs(tabs: Tab[]): Promise<void> {
+    await this.ensureLoaded()
+    for (const t of tabs) {
+      const i = this.data.tabs.findIndex((x) => x.id === t.id)
+      if (i >= 0) this.data.tabs[i] = t
+      else this.data.tabs.push(t)
+    }
+    await this.persist()
+  }
+
+  /**
    * On startup no agent processes exist yet, so any tab persisted as
    * 'running'/'starting' is stale. Reset those to 'idle' so the UI shows them
    * as resumable rather than falsely live.

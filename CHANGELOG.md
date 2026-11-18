@@ -24,6 +24,15 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-11-18
+### Fixed
+- **"Project not found" when creating a tab on a cloud-synced project.** Cloud
+  restore populated the UI but not the backend store, so `tab:create` (which
+  validates against the local store) couldn't find the project. Cloud-restored
+  projects/tabs are now persisted into the local store via a new `store:import`
+  IPC, and projects are deduped by folder path so the same folder isn't listed
+  twice.
+
 ## [0.2.1] — 2026-11-18
 ### Fixed
 - **Blank terminal after restart.** A restored tab could read as `running` even
@@ -67,7 +76,8 @@ First working version.
 - **Local-first persistence** — projects/tabs saved to a local JSON store; the
   app works fully offline when Supabase isn't configured.
 
-[Unreleased]: https://github.com/Incendio03/agent-fleet/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Incendio03/agent-fleet/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Incendio03/agent-fleet/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Incendio03/agent-fleet/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Incendio03/agent-fleet/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Incendio03/agent-fleet/releases/tag/v0.1.0

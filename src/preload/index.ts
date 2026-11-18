@@ -38,7 +38,9 @@ const api = {
   // --- Dialogs ---
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.dialogPickFolder),
 
-  // --- Auth / system ---
+  // --- Sync / system ---
+  importData: (projects: Project[], tabs: Tab[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.storeImport, { projects, tabs }),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke(IPC.openExternal, url),
   cloneRepo: (githubUrl: string, name: string): Promise<string> =>
     ipcRenderer.invoke(IPC.cloneRepo, githubUrl, name),

@@ -175,22 +175,33 @@ export const useStore = create<FleetState>((set, get) => ({
 
   setError: (msg) => set({ error: msg }),
 
-  // Pull the signed-in user's projects/tabs from Supabase and merge them into
-  // the current view (dedupe by id). Restored tabs have no live process here,
-  // so force their status to 'idle' (they'll show the Resume overlay).
+  // Pull the signed-in user's projects/tabs from Supabase, PERSIST the new ones
+  // into the backend store (so tab:create can find them), then merge into view.
+  // Dedupe projects by id AND localPath so the same folder isn't shown twice.
+  // Restored tabs have no live process here, so force their status to 'idle'.
   restoreFromCloud: async () => {
     const snap = await pullAll()
     if (!snap) return
-    set((s) => {
-      const projectIds = new Set(s.projects.map((p) => p.id))
-      const tabIds = new Set(s.tabs.map((t) => t.id))
-      const restoredTabs = snap.tabs
-        .filter((t) => !tabIds.has(t.id))
-        .map((t) => ({ ...t, status: 'idle' as TabStatus }))
-      return {
-        projects: [...s.projects, ...snap.projects.filter((p) => !projectIds.has(p.id))],
-        tabs: [...s.tabs, ...restoredTabs]
-      }
-    })
+    const s = get()
+    const existingIds = new Set(s.projects.map((p) => p.id))
+    const existingPaths = new Set(s.projects.map((p) => p.localPath))
+    const newProjects = snap.projects.filter(
+      (p) => !existingIds.has(p.id) && !existingPaths.has(p.localPath)
+    )
+    // Only accept tabs whose project will actually exist locally.
+    const validProjectIds = new Set([...existingIds, ...newProjects.map((p) => p.id)])
+    const existingTabIds = new Set(s.tabs.map((t) => t.id))
+    const newTabs = snap.tabs
+      .filter((t) => !existingTabIds.has(t.id) && validProjectIds.has(t.projectId))
+      .map((t) => ({ ...t, status: 'idle' as TabStatus }))
+
+    if (newProjects.length || newTabs.length) {
+      // Write to the backend store first — this is what fixes "Project not found".
+      await window.fleet.importData(newProjects, newTabs)
+      set((st) => ({
+        projects: [...st.projects, ...newProjects],
+        tabs: [...st.tabs, ...newTabs]
+      }))
+    }
   }
 }))
