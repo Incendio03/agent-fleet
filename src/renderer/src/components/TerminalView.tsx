@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useStore } from '../store/useStore'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -17,6 +18,9 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  // Whether this tab's agent process is alive. When it (re)starts, the PTY is
+  // spawned at a default 80x24, so we must send our real size again.
+  const isLive = useStore((s) => s.liveTabIds.has(tabId))
 
   // Create the xterm instance once, on mount.
   useEffect(() => {
@@ -50,16 +54,11 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
 
     // Fit to the container, then tell the PTY our real size. Skipped while
     // hidden (display:none measures as 0 and would send a bogus size).
-    let lastSent = ''
     const doFit = (): void => {
       if (!host.offsetWidth || !host.offsetHeight) return
       try {
         fit.fit()
-        const size = `${term.cols}x${term.rows}`
-        if (size !== lastSent) {
-          lastSent = size
-          window.fleet.resize(tabId, term.cols, term.rows)
-        }
+        window.fleet.resize(tabId, term.cols, term.rows)
       } catch {
         /* host not measurable yet */
       }
@@ -91,7 +90,8 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabId])
 
-  // When this tab becomes active, it just became visible — refit + focus.
+  // When this tab becomes active (just became visible) or its agent (re)starts
+  // (PTY spawned at 80x24), refit and send the real size + focus.
   useEffect(() => {
     if (!active) return
     const raf = requestAnimationFrame(() => {
@@ -107,7 +107,7 @@ export function TerminalView({ tabId, active }: { tabId: string; active: boolean
       }
     })
     return () => cancelAnimationFrame(raf)
-  }, [active, tabId])
+  }, [active, tabId, isLive])
 
   return <div ref={hostRef} className="terminal-host" style={{ display: active ? 'block' : 'none' }} />
 }

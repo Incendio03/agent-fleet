@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to Agent Fleet are documented here.
 
@@ -24,25 +24,31 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 
-## [0.3.1] — 2026-11-18
+## [0.3.2] — 2026-11-19
+### Fixed
+- Resumed/new agents drew at 80 columns (stray lines, prompt box mid-screen): the
+  terminal now re-sends its real size whenever its agent (re)starts. 0.3.1's
+  "skip unchanged size" check had suppressed that resend.
+
+## [0.3.1] â€” 2026-11-18
 ### Fixed
 - Garbled terminal (prompt box drawn mid-screen) after resizing: terminal resizes
   are now debounced so Claude Code redraws once at the final size, and hidden tabs
   no longer send bogus sizes.
 
-## [0.3.0] — 2026-11-18
+## [0.3.0] â€” 2026-11-18
 ### Added
-- **Side browser panel** (one per window, toggle with 🌐 in the tab bar, resizable
+- **Side browser panel** (one per window, toggle with ðŸŒ in the tab bar, resizable
   splitter). **Annotate** works like a snipping tool: drag a box on the live page,
   add an optional note, send. The full screenshot (box + note drawn in) is saved to
   `<project>/.fleet/shots/` (git-ignored) and its path typed into the active agent.
 - **Click images in the terminal to view them.** `[Image #N]` placeholders (pasted,
   sent or not) and image file paths are clickable and open an in-app viewer
   (fit / actual size, Show in folder).
-- **Side browser zoom:** Ctrl + / Ctrl − / Ctrl 0 and Ctrl + mouse wheel, plus a ⋮
-  menu in the browser bar with − / % / + controls (click % to reset).
-- **Edit projects and agents.** ⋮ or right-click on a project (sidebar) edits name, folder and
-  GitHub URL; tabs following the old folder move with it. ⋮, right-click or
+- **Side browser zoom:** Ctrl + / Ctrl âˆ’ / Ctrl 0 and Ctrl + mouse wheel, plus a â‹®
+  menu in the browser bar with âˆ’ / % / + controls (click % to reset).
+- **Edit projects and agents.** â‹® or right-click on a project (sidebar) edits name, folder and
+  GitHub URL; tabs following the old folder move with it. â‹®, right-click or
   double-click on a tab edits name, instructions, model, effort and mode; settings apply
   on the agent's next launch/resume. Changes sync to the cloud when signed in.
 
@@ -52,7 +58,7 @@ The running version is shown in the app's sidebar header.
 - Terminal text no longer runs under the scrollbar (FitAddon was measuring the
   host's padding as usable width).
 
-## [0.2.2] — 2026-11-18
+## [0.2.2] â€” 2026-11-18
 ### Fixed
 - **"Project not found" when creating a tab on a cloud-synced project.** Cloud
   restore populated the UI but not the backend store, so `tab:create` (which
@@ -61,17 +67,17 @@ The running version is shown in the app's sidebar header.
   IPC, and projects are deduped by folder path so the same folder isn't listed
   twice.
 
-## [0.2.1] — 2026-11-18
+## [0.2.1] â€” 2026-11-18
 ### Fixed
 - **Blank terminal after restart.** A restored tab could read as `running` even
   though no agent process existed, so the Resume overlay didn't appear and the
   terminal showed blank. "Is this tab live?" is now tracked from actual sessions
-  in the current app run (`liveTabIds`), not the persisted status — so restored
+  in the current app run (`liveTabIds`), not the persisted status â€” so restored
   tabs reliably show the Resume overlay.
 ### Added
-- `CLAUDE.md` — project context/handoff file auto-loaded by Claude Code.
+- `CLAUDE.md` â€” project context/handoff file auto-loaded by Claude Code.
 
-## [0.2.0] — 2026-11-18
+## [0.2.0] â€” 2026-11-18
 ### Changed
 - **Tabs are now agents/roles, not one-off tasks.** The new-agent dialog asks for
   an **agent name/role** (e.g. "Software Engineer", "Project Manager") with
@@ -81,27 +87,27 @@ The running version is shown in the app's sidebar header.
   the project folder and create branches themselves when you ask. (Worktree
   isolation remains available in the backend via an opt-in `isolate` flag.)
 
-## [0.1.0] — 2026-11-18
+## [0.1.0] â€” 2026-11-18
 First working version.
 
 ### Added
-- **Multi-tab agent workspace** — Electron + React + TypeScript desktop app where
+- **Multi-tab agent workspace** â€” Electron + React + TypeScript desktop app where
   each tab is a terminal (`xterm.js`) running a Claude Code agent.
-- **Projects** — add any folder as a project (a single git repo *or* a folder
+- **Projects** â€” add any folder as a project (a single git repo *or* a folder
   containing several repos).
-- **Agent tabs** — launch `claude` per tab with selectable **model**, **effort**,
+- **Agent tabs** â€” launch `claude` per tab with selectable **model**, **effort**,
   and **interaction mode** (confirm everything / confirm risky only / autonomous),
   mapped to the CLI's `--permission-mode`.
-- **Git worktree isolation** — for git-repo projects, each agent gets its own
+- **Git worktree isolation** â€” for git-repo projects, each agent gets its own
   branch + worktree so parallel agents don't collide; non-git projects run the
   agent directly in the folder (never deleted on close).
-- **Session resume** — each tab has a stable Claude session id; a Resume action
+- **Session resume** â€” each tab has a stable Claude session id; a Resume action
   re-attaches the saved conversation (`claude --resume`) with full memory.
-- **CLI capability detection** — supported flags are detected from
+- **CLI capability detection** â€” supported flags are detected from
   `claude --help`, so the app adapts to the installed Claude Code version.
-- **Cloud sync (optional)** — Supabase (Postgres + Auth + RLS) with GitHub login
+- **Cloud sync (optional)** â€” Supabase (Postgres + Auth + RLS) with GitHub login
   via a loopback OAuth redirect; projects/tabs sync across devices.
-- **Local-first persistence** — projects/tabs saved to a local JSON store; the
+- **Local-first persistence** â€” projects/tabs saved to a local JSON store; the
   app works fully offline when Supabase isn't configured.
 
 [Unreleased]: https://github.com/Incendio03/agent-fleet/compare/v0.2.2...HEAD
