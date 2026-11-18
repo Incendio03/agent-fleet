@@ -43,6 +43,11 @@ const api = {
     ipcRenderer.invoke(IPC.browserCapture, webContentsId),
   saveShot: (projectId: string, dataUrl: string): Promise<string> =>
     ipcRenderer.invoke(IPC.shotSave, projectId, dataUrl),
+  onBrowserZoom: (cb: (percent: number) => void): (() => void) => {
+    const h = (_e: unknown, percent: number): void => cb(percent)
+    ipcRenderer.on(IPC.browserZoom, h)
+    return () => ipcRenderer.removeListener(IPC.browserZoom, h)
+  },
 
   // --- Image viewer ---
   resolveImage: (tabId: string, n: number): Promise<string | null> =>

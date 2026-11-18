@@ -104,5 +104,6 @@ export const IPC = {
   tabData: 'tab:data', // terminal output chunk
   tabExit: 'tab:exit', // process exited
   tabStatus: 'tab:status', // status changed
+  browserZoom: 'browser:zoom', // side-browser zoom changed (percent)
   authCallback: 'auth:callback' // OAuth deep-link redirect came back
 } as const

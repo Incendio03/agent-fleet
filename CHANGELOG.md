@@ -31,6 +31,8 @@ The running version is shown in the app's sidebar header.
 - **Click images in the terminal to view them.** `[Image #N]` placeholders (pasted,
   sent or not) and image file paths are clickable and open an in-app viewer
   (fit / actual size, Show in folder).
+- **Side browser zoom:** Ctrl + / Ctrl − / Ctrl 0 and Ctrl + mouse wheel, plus a ⋮
+  menu in the browser bar with − / % / + controls (click % to reset).
 
 ### Fixed
 - Terminal text no longer runs under the scrollbar (FitAddon was measuring the

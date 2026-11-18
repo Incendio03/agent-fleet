@@ -490,3 +490,53 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background-color: #6b6b7b; }
 .xterm .xterm-viewport { background-color: transparent !important; }
+
+
+/* ---- Browser kebab menu ---- */
+.browser-bar > :not(.browser-url) { flex-shrink: 0; }
+.kebab { position: relative; }
+.kebab-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 50;
+  min-width: 200px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.kebab-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+.zoom-ctrl { display: flex; align-items: center; gap: 2px; }
+.zoom-value {
+  min-width: 48px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px;
+}
+.zoom-value:hover { background: var(--bg-elev2); }
+.kebab-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.kebab-item:hover { background: var(--bg-elev2); }

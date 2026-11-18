@@ -5,6 +5,8 @@ import { useStore } from '../store/useStore'
 interface WebviewEl extends HTMLElement {
   getURL(): string
   getWebContentsId(): number
+  setZoomLevel(level: number): void
+  getZoomLevel(): number
   loadURL(url: string): Promise<void>
   goBack(): void
   goForward(): void
@@ -40,6 +42,30 @@ export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element 
   const [loading, setLoading] = useState(false)
   const [nav, setNav] = useState({ back: false, fwd: false })
   const [snipping, setSnipping] = useState(false)
+  const [zoom, setZoom] = useState(100)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close the kebab menu on any click outside it.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent): void => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [menuOpen])
+
+  /** Step zoom like Chrome (~10% per step); null resets to 100%. */
+  const zoomBy = (delta: number | null): void => {
+    const wv = wvRef.current
+    if (!wv || typeof wv.getZoomLevel !== 'function') return
+    const level = delta === null ? 0 : Math.min(Math.max(wv.getZoomLevel() + delta, -5), 5)
+    wv.setZoomLevel(level)
+    setZoom(Math.round(Math.pow(1.2, level) * 100))
+  }
+
+  useEffect(() => window.fleet.onBrowserZoom(setZoom), [])
   const setError = useStore((s) => s.setError)
 
   useEffect(() => {
@@ -53,6 +79,12 @@ export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element 
     }
     const start = (): void => setLoading(true)
     const stop = (): void => { setLoading(false); sync() }
+    // Chromium remembers zoom per site; reflect it after each navigation.
+    const syncZoom = (): void => {
+      const z = (wv as unknown as { getZoomFactor?: () => number }).getZoomFactor?.()
+      if (z) setZoom(Math.round(z * 100))
+    }
+    wv.addEventListener('did-finish-load', syncZoom)
     wv.addEventListener('did-navigate', sync)
     wv.addEventListener('did-navigate-in-page', sync)
     wv.addEventListener('did-start-loading', start)
@@ -62,6 +94,7 @@ export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element 
       wv.removeEventListener('did-navigate-in-page', sync)
       wv.removeEventListener('did-start-loading', start)
       wv.removeEventListener('did-stop-loading', stop)
+      wv.removeEventListener('did-finish-load', syncZoom)
     }
   }, [])
 
@@ -107,7 +140,22 @@ export function BrowserPanel({ onClose }: { onClose: () => void }): JSX.Element 
         >
           Annotate
         </button>
-        <button className="icon-btn" onClick={onClose} title="Close browser">✕</button>
+        <div className="kebab" ref={menuRef}>
+          <button className="icon-btn" onClick={() => setMenuOpen((o) => !o)} title="More">⋮</button>
+          {menuOpen && (
+            <div className="kebab-menu">
+              <div className="kebab-row">
+                <span>Zoom</span>
+                <span className="zoom-ctrl">
+                  <button className="icon-btn" onClick={() => zoomBy(-0.5)} title="Zoom out (Ctrl −)">−</button>
+                  <button className="zoom-value" onClick={() => zoomBy(null)} title="Reset (Ctrl 0)">{zoom}%</button>
+                  <button className="icon-btn" onClick={() => zoomBy(0.5)} title="Zoom in (Ctrl +)">+</button>
+                </span>
+              </div>
+              <button className="kebab-item" onClick={() => { setMenuOpen(false); onClose() }}>Close browser</button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="browser-stage">
         <webview

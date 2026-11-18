@@ -81,6 +81,23 @@ app.on('web-contents-created', (_e, wc) => {
     if (/^https?:/.test(url)) void wc.loadURL(url)
     return { action: 'deny' }
   })
+
+  // Browser-style zoom: Ctrl +/-/0 and Ctrl+mouse wheel. Keys pressed inside
+  // the page never reach the host window, so handle them on the page itself.
+  const zoom = (delta: number | null): void => {
+    const level = delta === null ? 0 : Math.min(Math.max(wc.getZoomLevel() + delta, -5), 5)
+    wc.setZoomLevel(level)
+    mainWindow?.webContents.send(IPC.browserZoom, Math.round(Math.pow(1.2, level) * 100))
+  }
+  wc.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown' || !(input.control || input.meta) || input.alt) return
+    if (input.key === '=' || input.key === '+') zoom(0.5)
+    else if (input.key === '-') zoom(-0.5)
+    else if (input.key === '0') zoom(null)
+    else return
+    e.preventDefault()
+  })
+  wc.on('zoom-changed', (_ev, dir) => zoom(dir === 'in' ? 0.5 : -0.5))
 })
 
 app.whenReady().then(async () => {
