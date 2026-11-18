@@ -16,7 +16,7 @@ import { useStore } from '../store/useStore'
  * - Signed out            -> "Sign in with GitHub".
  * - Signed in             -> email + sign out; restores cloud data on login.
  */
-export function AuthBar(): JSX.Element {
+export function AuthBar({ compact = false }: { compact?: boolean } = {}): JSX.Element {
   const restoreFromCloud = useStore((s) => s.restoreFromCloud)
   const setError = useStore((s) => s.setError)
   const [email, setEmail] = useState<string | null>(null)
@@ -45,6 +45,13 @@ export function AuthBar(): JSX.Element {
   }, [restoreFromCloud, setError])
 
   if (!isCloudEnabled) {
+    if (compact) {
+      return (
+        <div className="authbar compact">
+          <span className="rail-note" title="Local only — add Supabase keys to .env to enable cloud login">●</span>
+        </div>
+      )
+    }
     return (
       <div className="authbar">
         <span className="auth-note" title="Add Supabase keys to .env to enable cloud login">
@@ -65,16 +72,37 @@ export function AuthBar(): JSX.Element {
     }
   }
 
+  const confirmSignOut = (): void => {
+    if (confirm('Sign out of Agent Fleet?\n\nCloud sync stops until you sign in again. Your projects and agents stay on this computer.')) {
+      void signOut()
+    }
+  }
+
+  // Collapsed sidebar: one icon button (green dot = signed in).
+  if (compact) {
+    return (
+      <div className="authbar compact">
+        <button
+          className={`rail-btn account ${email ? 'signed-in' : ''}`}
+          onClick={email ? confirmSignOut : login}
+          disabled={busy}
+          title={email ? `Signed in as ${email}\nClick to sign out` : 'Sign in with GitHub'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21a8 8 0 0 1 16 0" />
+          </svg>
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="authbar">
       {email ? (
         <>
           <span className="auth-email" title={email}>● {email}</span>
-          <button className="btn ghost sm" onClick={() => {
-              if (confirm('Sign out of Agent Fleet?\n\nCloud sync stops until you sign in again. Your projects and agents stay on this computer.')) {
-                void signOut()
-              }
-            }}>Sign out</button>
+          <button className="btn ghost sm" onClick={confirmSignOut}>Sign out</button>
         </>
       ) : (
         <button className="btn sm" onClick={login} disabled={busy}>

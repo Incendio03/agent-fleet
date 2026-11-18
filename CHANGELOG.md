@@ -24,11 +24,18 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 ### Added
+- **Collapsible sidebar** (« in the header; click ⚓ to expand). Collapsed, it's an
+  icon rail: each project is a coloured initials badge (green dot = agents running,
+  name on hover), with compact New project, account and Settings buttons. Remembered.
 - **Browser tabs** in the side panel: tab strip with titles + site icons, + / ×
   (middle-click closes), Ctrl+T / Ctrl+W, links that open a new window open a tab,
   tabs remembered across restarts. Each tab keeps its page while hidden; Annotate,
   zoom and the menu act on the current tab.
 
+
+### Changed
+- Lighter sidebar: smaller project names (13px) and meta text, tighter rows, subtler
+  highlight for the selected project.
 
 ## [0.4.0] — 2026-11-19
 ### Added
