@@ -772,3 +772,14 @@ body {
   text-align: left;
 }
 .sidebar-settings:hover { color: var(--text); background: var(--bg-elev2); }
+
+/* ---- Settings window ---- */
+.modal.settings-modal { width: 760px; max-width: calc(100vw - 32px); padding: 0; display: flex; min-height: 440px; max-height: calc(100vh - 64px); }
+.settings-nav { width: 180px; flex-shrink: 0; padding: 18px 10px; border-right: 1px solid var(--border); background: var(--bg-elev); border-radius: 12px 0 0 12px; }
+.settings-nav h2 { font-size: 15px; margin: 0 8px 12px; }
+.settings-nav-item { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--text-dim); font-size: 13px; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.settings-nav-item:hover { color: var(--text); background: var(--bg-elev2); }
+.settings-nav-item.active { color: var(--text); background: var(--bg-elev2); }
+.settings-content { flex: 1; min-width: 0; padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; }
+.settings-section { flex: 1; }
+.agents-head h3 { margin: 0; font-size: 15px; }

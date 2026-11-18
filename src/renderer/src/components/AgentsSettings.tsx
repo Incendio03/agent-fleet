@@ -4,11 +4,11 @@ import { useStore } from '../store/useStore'
 import { TerminalView } from './TerminalView'
 
 /**
- * Settings → Agents: every supported agent CLI with its install and sign-in
+ * Settings → Agents section: every supported agent CLI with its install and sign-in
  * state. Sign-in runs the CLI's own login flow in an embedded terminal, so
  * credentials stay with each CLI — Agent Fleet never sees them.
  */
-export function AgentsDialog({ onClose }: { onClose: () => void }): JSX.Element {
+export function AgentsSettings(): JSX.Element {
   const agents = useStore((s) => s.agents)
   const setAgents = useStore((s) => s.setAgents)
   const [status, setStatus] = useState<Partial<Record<AgentKind, AgentStatus>>>({})
@@ -60,10 +60,9 @@ export function AgentsDialog({ onClose }: { onClose: () => void }): JSX.Element 
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+    <div className="settings-section">
         <div className="agents-head">
-          <h2>Agents</h2>
+          <h3>Agents</h3>
           <button className="btn sm" disabled={checking} onClick={() => void refresh()}>
             {checking ? 'Checking…' : 'Re-check'}
           </button>
@@ -140,12 +139,6 @@ export function AgentsDialog({ onClose }: { onClose: () => void }): JSX.Element 
           </div>
         )}
 
-        {!loginFor && (
-          <div className="modal-actions">
-            <button className="btn" onClick={onClose}>Close</button>
-          </div>
-        )}
-      </div>
     </div>
   )
 }

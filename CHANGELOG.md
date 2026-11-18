@@ -24,7 +24,9 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 ### Added
-- **Agents settings** (gear in the sidebar header). Shows each agent CLI's version
+- Confirmation before signing out of Agent Fleet (cloud account).
+- **Settings window** (⚙ Settings at the bottom of the sidebar), with sections;
+  the first is **Agents**. Shows each agent CLI's version
   and sign-in state (from `claude auth status` / `codex login status`). Sign in,
   switch account, or sign out; sign-in runs the CLI's own login flow in an embedded
   terminal, so credentials stay with each CLI. Not-installed agents show an install

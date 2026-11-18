@@ -70,7 +70,11 @@ export function AuthBar(): JSX.Element {
       {email ? (
         <>
           <span className="auth-email" title={email}>● {email}</span>
-          <button className="btn ghost sm" onClick={() => void signOut()}>Sign out</button>
+          <button className="btn ghost sm" onClick={() => {
+              if (confirm('Sign out of Agent Fleet?\n\nCloud sync stops until you sign in again. Your projects and agents stay on this computer.')) {
+                void signOut()
+              }
+            }}>Sign out</button>
         </>
       ) : (
         <button className="btn sm" onClick={login} disabled={busy}>
