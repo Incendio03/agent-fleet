@@ -6,7 +6,7 @@ import { TabBar } from './components/TabBar'
 import { TerminalView } from './components/TerminalView'
 import { NewProjectDialog } from './components/NewProjectDialog'
 import { NewTabDialog } from './components/NewTabDialog'
-import { BrowserPanel } from './components/BrowserPanel'
+import { SidePanel } from './components/SidePanel'
 import { ImageViewer } from './components/ImageViewer'
 import { SplashScreen } from './components/SplashScreen'
 
@@ -137,7 +137,7 @@ export default function App(): JSX.Element {
         <>
           <div className="splitter" onPointerDown={startDrag} />
           <div className="browser-slot" style={{ width: browserWidth }}>
-            <BrowserPanel onClose={toggleBrowser} />
+            <SidePanel onClose={toggleBrowser} />
           </div>
         </>
       )}

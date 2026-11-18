@@ -94,6 +94,18 @@ export interface UpdateTabOptions {
   permissionMode: PermissionMode
 }
 
+/** One agent-to-agent message, read from the sender's Claude transcript. */
+export interface FleetMessage {
+  id: string
+  ts: number
+  fromTabId: string
+  /** Sender's session name. */
+  from: string
+  /** Recipient as the sender addressed it (a session name). */
+  to: string
+  text: string
+}
+
 // ---- IPC channel names (single source of truth) --------------------------
 
 export const IPC = {
@@ -115,6 +127,10 @@ export const IPC = {
   storeImport: 'store:import',
   browserCapture: 'browser:capture', // screenshot a <webview> by webContentsId
   shotSave: 'shot:save', // save an annotated PNG into the project folder
+  boardRead: 'board:read', // project's .fleet/board.md
+  boardWrite: 'board:write',
+  messagesList: 'messages:list', // agent-to-agent messages in a project
+  sessionNames: 'team:names', // tabId -> Claude session name
   imageResolve: 'image:resolve', // [Image #N] in a tab -> file path on disk
   imageRead: 'image:read', // image file -> data URL for the viewer
   imageReveal: 'image:reveal', // show an image file in Explorer

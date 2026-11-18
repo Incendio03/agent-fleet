@@ -3,6 +3,7 @@ import {
   IPC,
   type CreateProjectOptions,
   type CreateTabOptions,
+  type FleetMessage,
   type UpdateProjectOptions,
   type UpdateTabOptions,
   type Project,
@@ -54,6 +55,14 @@ const api = {
     ipcRenderer.on(IPC.browserZoom, h)
     return () => ipcRenderer.removeListener(IPC.browserZoom, h)
   },
+
+  // --- Team ---
+  readBoard: (projectId: string): Promise<string> => ipcRenderer.invoke(IPC.boardRead, projectId),
+  writeBoard: (projectId: string, text: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.boardWrite, projectId, text),
+  listMessages: (projectId: string): Promise<FleetMessage[]> => ipcRenderer.invoke(IPC.messagesList, projectId),
+  sessionNames: (projectId: string): Promise<Record<string, string>> =>
+    ipcRenderer.invoke(IPC.sessionNames, projectId),
 
   // --- Image viewer ---
   resolveImage: (tabId: string, n: number): Promise<string | null> =>

@@ -23,6 +23,17 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Added
+- **Named agents.** Each agent's Claude session is named `<project>-<role>` (e.g.
+  `agent-fleet-code-reviewer`) via `--name`, which is the address teammates use with
+  Claude Code's built-in SendMessage. Each agent also gets a team prompt
+  (`--append-system-prompt`) with its role, teammates' names and the board.
+- **Fleet board.** `<project>/.fleet/board.md`, a shared notes file every agent is
+  told to read and keep its own section of. Editable in the side panel's Board tab.
+- **Messages panel.** The side panel's Messages tab shows agent-to-agent messages
+  (read from each agent's Claude transcript) and the team roster.
+- The 🌐 side panel now has Browser / Board / Messages tabs.
+
 ### Changed
 - Startup shows a full-window splash screen (logo, name, progress bar, version)
   until projects are fully loaded, including the cloud restore when signed in

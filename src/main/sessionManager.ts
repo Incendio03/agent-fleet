@@ -26,6 +26,8 @@ interface SpawnArgs {
   rows: number
   /** Re-attach the saved Claude conversation instead of starting fresh. */
   resume?: boolean
+  /** Session name + team prompt (see team.ts). */
+  team?: { sessionName: string; prompt: string } | null
 }
 
 export declare interface SessionManager {
@@ -40,7 +42,7 @@ export class SessionManager extends EventEmitter {
   private shuttingDown = false
 
   /** Spawn claude for a tab inside its worktree. Returns once the PTY exists. */
-  async spawn({ tab, cols, rows, resume }: SpawnArgs): Promise<void> {
+  async spawn({ tab, cols, rows, resume, team }: SpawnArgs): Promise<void> {
     if (this.sessions.has(tab.id)) {
       throw new Error(`Session for tab ${tab.id} already running`)
     }
@@ -55,7 +57,9 @@ export class SessionManager extends EventEmitter {
       effort: tab.effort,
       permissionMode: tab.permissionMode,
       sessionId: tab.sessionId,
-      resume
+      resume,
+      sessionName: team?.sessionName,
+      appendSystemPrompt: team?.prompt
     })
 
     // On Windows node-pty uses ConPTY under the hood.

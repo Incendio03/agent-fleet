@@ -60,7 +60,7 @@ export function TabBar({
       <button
         className={`tab-new browser-toggle ${browserOpen ? 'on' : ''}`}
         onClick={onToggleBrowser}
-        title={browserOpen ? 'Hide browser' : 'Show browser'}
+        title={browserOpen ? 'Hide side panel' : 'Browser, board and messages'}
       >
         🌐
       </button>

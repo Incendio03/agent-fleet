@@ -12,12 +12,14 @@ import {
   type CreateTabOptions,
   type UpdateProjectOptions,
   type UpdateTabOptions,
+  type FleetMessage,
   type Project,
   type Tab
 } from '@shared/types'
 import { store } from './store'
 import { sessionManager } from './sessionManager'
 import { createWorktree, removeWorktree, isGitRepo } from './worktree'
+import { teamContext, projectMessages, projectSessionNames, readBoard, writeBoard } from './team'
 
 const execFileAsync = promisify(execFile)
 
@@ -133,7 +135,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     await store.addTab(tab)
 
     // Spawn the agent. Start at a sane default size; UI resizes immediately.
-    await sessionManager.spawn({ tab, cols: 80, rows: 24 })
+    await sessionManager.spawn({ tab, cols: 80, rows: 24, team: await teamContext(tab).catch(() => null) })
     return tab
   })
 
@@ -149,7 +151,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
           `Its code/conversation live where it was created.`
       )
     }
-    await sessionManager.spawn({ tab, cols: 80, rows: 24, resume: true })
+    await sessionManager.spawn({ tab, cols: 80, rows: 24, resume: true, team: await teamContext(tab).catch(() => null) })
     return tab
   })
 
@@ -189,6 +191,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     if (!tab) throw new Error('Tab not found')
     return tab
   })
+
+  // --- Team: board, messages, names -----------------------------------------
+  ipcMain.handle(IPC.boardRead, async (_e, projectId: string): Promise<string> => readBoard(projectId))
+  ipcMain.handle(IPC.boardWrite, async (_e, projectId: string, text: string): Promise<void> =>
+    writeBoard(projectId, text)
+  )
+  ipcMain.handle(IPC.messagesList, async (_e, projectId: string): Promise<FleetMessage[]> =>
+    projectMessages(projectId)
+  )
+  ipcMain.handle(IPC.sessionNames, async (_e, projectId: string): Promise<Record<string, string>> =>
+    projectSessionNames(projectId)
+  )
 
   ipcMain.on(IPC.tabInput, (_e, tabId: string, data: string) => {
     sessionManager.write(tabId, data)

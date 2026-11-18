@@ -22,6 +22,8 @@ export interface ClaudeCapabilities {
   supportsSessionId: boolean
   supportsResume: boolean
   supportsContinue: boolean
+  supportsName: boolean
+  supportsAppendSystemPrompt: boolean
   helpText: string
 }
 
@@ -67,6 +69,8 @@ export async function detectClaude(): Promise<ClaudeCapabilities> {
     supportsSessionId: /--session-id\b/.test(helpText),
     supportsResume: /--resume\b/.test(helpText),
     supportsContinue: /--continue\b/.test(helpText),
+    supportsName: /--name\b/.test(helpText),
+    supportsAppendSystemPrompt: /--append-system-prompt\b/.test(helpText),
     helpText
   }
   return cached
@@ -83,6 +87,10 @@ export interface BuildOptions extends Omit<CreateTabOptions, 'isolate'> {
   sessionId: string
   /** When true, re-attach the saved conversation instead of starting fresh. */
   resume?: boolean
+  /** Claude session display name — the address teammates message (`--name`). */
+  sessionName?: string
+  /** Extra system-prompt text (role, teammates, board) via --append-system-prompt. */
+  appendSystemPrompt?: string
 }
 
 /**
@@ -101,6 +109,10 @@ export async function buildClaudeCommand(opts: BuildOptions): Promise<SpawnComma
   if (caps.supportsModel) args.push('--model', opts.model)
   if (caps.supportsEffort) args.push('--effort', opts.effort)
   if (caps.supportsPermissionMode) args.push('--permission-mode', opts.permissionMode)
+  if (caps.supportsName && opts.sessionName) args.push('--name', opts.sessionName)
+  if (caps.supportsAppendSystemPrompt && opts.appendSystemPrompt) {
+    args.push('--append-system-prompt', opts.appendSystemPrompt)
+  }
 
   if (opts.resume) {
     // Re-attach the existing conversation. Prefer an explicit session id.

@@ -30,6 +30,8 @@ src/
     claude.ts           resolves claude path; detects supported flags from --help;
                         builds the launch command (fresh vs --resume)
     worktree.ts         git worktree create/remove (only used when isolate=true)
+    team.ts             named agents (--name), team prompt, .fleet/board.md, messages
+                        read from Claude transcripts (~/.claude/projects/<cwd>/<sid>.jsonl)
     authServer.ts       loopback HTTP server on 127.0.0.1:8923 for OAuth redirect
     store.ts            local JSON persistence (userData/data/store.json)
   preload/index.ts      the secure window.fleet bridge (only API the UI can call)
