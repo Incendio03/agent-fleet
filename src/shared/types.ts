@@ -115,6 +115,16 @@ export interface UpdateTabOptions {
   permissionMode: PermissionMode
 }
 
+/** App preferences kept by the main process (main/prefs.ts). */
+export interface AppPrefs {
+  /**
+   * Run Claude agents with Claude Code's classic interface ("tui": "default"),
+   * so the conversation lives in terminal scrollback (real scrollbar, wheel,
+   * selection). Off = inherit the user's Claude Code setting (e.g. fullscreen).
+   */
+  classicScrolling: boolean
+}
+
 /** What an agent just did, reported by its hooks (see main/attention.ts). */
 export interface TabActivity {
   tabId: string
@@ -190,6 +200,8 @@ export const IPC = {
   tabData: 'tab:data', // terminal output chunk
   tabExit: 'tab:exit', // process exited
   tabStatus: 'tab:status', // status changed
+  prefsGet: 'prefs:get',
+  prefsSet: 'prefs:set',
   tabActivity: 'tab:activity', // agent hook event (working / done / needs input)
   windowFocus: 'app:focusWindow', // bring the window to the front (notification click)
   browserZoom: 'browser:zoom', // side-browser zoom changed (percent)

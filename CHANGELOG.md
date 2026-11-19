@@ -32,6 +32,13 @@ The running version is shown in the app's sidebar header.
   Settings → Notifications to choose which alerts pop up.
 
 
+### Fixed
+- Terminal scrollbar didn't follow the conversation or the mouse wheel: with
+  Claude Code's `"tui": "fullscreen"` setting, Claude drew full-screen and scrolled
+  on its own. Agents now run with the classic interface (`"tui": "default"` via
+  their `--settings` file), so the conversation is real terminal scrollback.
+  Settings → Terminal → "Classic scrolling" turns this off.
+
 ## [0.5.0] — 2026-11-19
 ### Added
 - **Collapsible sidebar** (« in the header; click ⚓ to expand). Collapsed, it's an

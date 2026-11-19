@@ -3,6 +3,7 @@ import {
   IPC,
   type CreateProjectOptions,
   type AgentInfo,
+  type AppPrefs,
   type AgentKind,
   type AgentStatus,
   type CreateTabOptions,
@@ -83,6 +84,10 @@ const api = {
       return ''
     }
   },
+
+  // --- Preferences ---
+  getPrefs: (): Promise<AppPrefs> => ipcRenderer.invoke(IPC.prefsGet),
+  setPrefs: (patch: Partial<AppPrefs>): Promise<AppPrefs> => ipcRenderer.invoke(IPC.prefsSet, patch),
 
   // --- Agents ---
   listAgents: (refresh?: boolean): Promise<AgentInfo[]> => ipcRenderer.invoke(IPC.agentsList, refresh),

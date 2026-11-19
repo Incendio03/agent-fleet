@@ -13,6 +13,7 @@ import {
   type UpdateProjectOptions,
   type UpdateTabOptions,
   type AgentInfo,
+  type AppPrefs,
   type AgentKind,
   type AgentStatus,
   type FleetMessage,
@@ -24,6 +25,7 @@ import { sessionManager } from './sessionManager'
 import { createWorktree, removeWorktree, isGitRepo } from './worktree'
 import { detectAgents, agentOf, agentStatus, agentPath, agentLogout, AGENT_AUTH } from './agents'
 import { homedir } from 'node:os'
+import { getPrefs, setPrefs } from './prefs'
 import { teamContext, projectMessages, projectSessionNames, readBoard, writeBoard } from './team'
 
 const execFileAsync = promisify(execFile)
@@ -205,6 +207,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle(IPC.tabKill, async (_e, id: string): Promise<void> => sessionManager.kill(id))
   ipcMain.handle(IPC.agentsList, async (_e, refresh?: boolean): Promise<AgentInfo[]> => detectAgents(refresh))
+
+  ipcMain.handle(IPC.prefsGet, (): AppPrefs => getPrefs())
+  ipcMain.handle(IPC.prefsSet, (_e, patch: Partial<AppPrefs>): Promise<AppPrefs> => setPrefs(patch))
 
   ipcMain.handle(IPC.agentStatus, async (_e, id: AgentKind): Promise<AgentStatus> => agentStatus(id))
 

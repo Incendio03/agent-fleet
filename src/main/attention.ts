@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { mkdir, writeFile } from 'node:fs/promises'
 import type { TabActivity } from '@shared/types'
 import { HOOK_PORT } from './authServer'
+import { getPrefs } from './prefs'
 
 /**
  * "Needs you" alerts. Each Claude agent is launched with hooks (via
@@ -21,7 +22,10 @@ const EVENTS: Record<string, TabActivity['kind']> = {
   notify: 'input' // Notification: needs permission / waiting for input
 }
 
-/** Write the per-tab hooks settings file and return its path (for --settings). */
+/**
+ * Write the per-tab Claude settings file (activity hooks, plus the classic
+ * scrolling override) and return its path, for `--settings`.
+ */
 export async function hookSettingsFile(tabId: string): Promise<string> {
   const dir = join(app.getPath('userData'), 'hooks')
   await mkdir(dir, { recursive: true })
@@ -32,7 +36,16 @@ export async function hookSettingsFile(tabId: string): Promise<string> {
   const file = join(dir, `${tabId}.json`)
   await writeFile(
     file,
-    JSON.stringify({ hooks: { UserPromptSubmit: hook('prompt'), Stop: hook('stop'), Notification: hook('notify') } }, null, 2)
+    JSON.stringify(
+      {
+        // Classic UI keeps the conversation in terminal scrollback; overrides a
+        // user-level "tui": "fullscreen" for agents in this app only.
+        ...(getPrefs().classicScrolling ? { tui: 'default' } : {}),
+        hooks: { UserPromptSubmit: hook('prompt'), Stop: hook('stop'), Notification: hook('notify') }
+      },
+      null,
+      2
+    )
   )
   return file
 }
