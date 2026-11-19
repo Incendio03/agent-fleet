@@ -43,6 +43,20 @@ class Store {
     return user ? join(this.dataDir(), 'users', `${user}.json`) : join(this.dataDir(), 'store.json')
   }
 
+  /** The signed-in account whose data is open (null = signed out). */
+  currentUser(): string | null {
+    return this.user
+  }
+
+  /**
+   * Folder of an account's general chats (default: the account that is open).
+   * Chats follow the same rule as projects: each account has its own, and
+   * signed out you see this computer's. See chatStore.ts for what's inside.
+   */
+  chatsDir(user: string | null = this.user): string {
+    return user ? join(this.dataDir(), 'users', user, 'chats') : join(this.dataDir(), 'chats')
+  }
+
   private async readFileData(file: string): Promise<StoreData> {
     if (!existsSync(file)) return empty()
     try {

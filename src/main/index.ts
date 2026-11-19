@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
-import { registerIpc } from './ipc'
+import { registerIpc, shutdownChats } from './ipc'
 import { detectClaude } from './claude'
 import { sessionManager } from './sessionManager'
 import { startAuthServer, stopAuthServer } from './authServer'
@@ -202,6 +202,7 @@ app.whenReady().then(async () => {
 // Kill all agent processes when the app closes so none are orphaned.
 app.on('before-quit', () => {
   sessionManager.killAll()
+  shutdownChats()
   stopAuthServer()
 })
 

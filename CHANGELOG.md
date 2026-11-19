@@ -23,9 +23,40 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Added
+- **General chats.** A normal assistant chat next to your projects: your messages as
+  bubbles, replies streaming in as formatted text (headings, lists, tables, code
+  blocks with colours and a Copy button). Answers come from whichever agent you have
+  connected (Claude or Codex), picked per chat together with its model; agents that
+  aren't signed in are shown but can't be picked. A chat can search the web and read
+  pages, but can't see your files or run commands.
+  - **Projects | Chats switch** at the top of the left bar. Each section has the whole
+    bar to itself, so a long project list never crowds the chats. Chats are listed
+    newest first, grouped by day, under a New chat button. The switch shows what the
+    other section is up to: a spinner while a chat is replying and a count of new
+    replies on Chats, the number of agents that want you on Projects. Opening Chats
+    returns to the chat you had open. Collapsed, the switch becomes two icons and
+    chats become round initials badges.
+  - Paste, drop or attach images; Stop a reply (Esc); Try again after a failed or
+    stopped one; rename (click the title) and delete chats; chats get a short title
+    automatically (Claude).
+  - Chats are saved on this computer, per account like projects, and survive restarts.
+    Signing in offers to bring this computer's chats along with its projects. They are
+    not synced to other devices yet.
+  - Switching a chat to another agent hands it the conversation so far. The same
+    happens if the agent's own copy of the conversation is gone.
+  - Codex chats are built to Codex's documented non-interactive mode but were only
+    tested up to its sign-in error (Codex wasn't signed in on the dev machine); its
+    replies arrive whole rather than word by word.
+  - New dev dependencies: `react-markdown`, `remark-gfm`, `rehype-highlight` (run
+    `npm install` after pulling).
+
 ### Changed
 - The browser page after GitHub sign-in is a simple card in the app's colours (no
   emoji), and says so when sign-in didn't complete instead of claiming success.
+- Clicking the project you're already in keeps its current agent tab (it used to jump
+  to the first tab). This is what makes going to a chat and back land where you were.
+- Links the app opens in your browser are limited to web and mail links.
 
 ## [0.6.0] — 2026-11-19
 ### Added

@@ -37,7 +37,7 @@ export function NotificationSettings(): JSX.Element {
         <input type="checkbox" disabled={!prefs.enabled} checked={prefs.done} onChange={(e) => update({ done: e.target.checked })} />
         <div>
           <div className="settings-toggle-title">When an agent finishes</div>
-          <div className="settings-toggle-hint">It finished its turn and is ready for your next message.</div>
+          <div className="settings-toggle-hint">It finished its turn and is ready for your next message. Also when a chat reply is ready.</div>
         </div>
       </label>
 

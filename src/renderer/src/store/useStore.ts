@@ -19,6 +19,10 @@ import {
   reconcile
 } from '../lib/cloudSync'
 import { accountOf, currentAccount, onAuthChange, type Account } from '../lib/supabase'
+import { useChatStore } from './useChatStore'
+
+/** A general chat covers the project view: the active agent tab is not what you're looking at. */
+const chatOnScreen = (): boolean => useChatStore.getState().activeChatId !== null
 
 /**
  * Central UI state. Components read from here and call these actions; the
@@ -102,6 +106,8 @@ export const useStore = create<FleetState>((set, get) => ({
   init: async () => {
     set({ loading: true })
     try {
+      // General chats listen for reply progress; their list loads with the account below.
+      useChatStore.getState().init()
       // Load the signed-in account's projects (or this computer's when signed
       // out), then follow sign-in/sign-out. SIGNED_OUT is the only event that
       // means "signed out": other events can carry no session while offline.
@@ -115,10 +121,10 @@ export const useStore = create<FleetState>((set, get) => ({
       // Subscribe once to live backend events that mutate tab state.
       window.fleet.onTabStatus((tabId, status) => get().setTabStatus(tabId, status))
       window.fleet.onTabActivity?.((a) => get().onActivity(a))
-      // Coming back to the window counts as seeing the current tab.
+      // Coming back to the window counts as seeing the current tab (unless a chat covers it).
       window.addEventListener('focus', () => {
         const id = get().activeTabId
-        if (id) get().clearAttention(id)
+        if (id && !chatOnScreen()) get().clearAttention(id)
       })
       window.fleet.onTabExit((tabId, exitCode) =>
         set((s) => ({
@@ -139,12 +145,19 @@ export const useStore = create<FleetState>((set, get) => ({
   },
 
   selectProject: (projectId) => {
-    const firstTab = get().tabs.find((t) => t.projectId === projectId)
-    set({ activeProjectId: projectId, activeTabId: firstTab?.id ?? null })
-    if (firstTab) get().clearAttention(firstTab.id)
+    // A project is coming on screen, so any open chat steps aside.
+    useChatStore.getState().select(null)
+    const s = get()
+    // Back to the project you were already in (e.g. from a chat): stay on its
+    // tab. A different project opens on its first tab.
+    const stay = s.activeProjectId === projectId && s.tabs.some((t) => t.id === s.activeTabId && t.projectId === projectId)
+    const tabId = stay ? s.activeTabId : s.tabs.find((t) => t.projectId === projectId)?.id ?? null
+    set({ activeProjectId: projectId, activeTabId: tabId })
+    if (tabId) get().clearAttention(tabId)
   },
 
   selectTab: (tabId) => {
+    useChatStore.getState().select(null)
     set({ activeTabId: tabId })
     get().clearAttention(tabId) // you're looking at it now
   },
@@ -171,7 +184,7 @@ export const useStore = create<FleetState>((set, get) => ({
     // after finishing; that's already covered by "done", so skip it.
     if (kind === 'input' && !s.busy[tabId]) return
     if (kind === 'done') set({ busy: { ...get().busy, [tabId]: false } })
-    const viewing = s.activeTabId === tabId && document.hasFocus()
+    const viewing = s.activeTabId === tabId && document.hasFocus() && !chatOnScreen()
     if (viewing) return // you saw it happen
     set({ attention: { ...get().attention, [tabId]: { kind, message, ts: Date.now() } } })
     const prefs = getNotifyPrefs()
@@ -188,6 +201,7 @@ export const useStore = create<FleetState>((set, get) => ({
   createProject: async (opts) => {
     try {
       const project = await window.fleet.createProject(opts)
+      useChatStore.getState().select(null) // show the new project, even if a chat was open
       set((s) => ({
         projects: [...s.projects, project],
         activeProjectId: project.id,
@@ -300,7 +314,7 @@ export const useStore = create<FleetState>((set, get) => ({
       const stopped = status === 'exited' || status === 'error'
       // An agent that crashed while you weren't looking wants attention too.
       const attention =
-        status === 'error' && !(s.activeTabId === tabId && document.hasFocus())
+        status === 'error' && !(s.activeTabId === tabId && document.hasFocus() && !chatOnScreen())
           ? { ...s.attention, [tabId]: { kind: 'error' as const, ts: Date.now() } }
           : s.attention
       return {
@@ -356,33 +370,54 @@ async function doSwitchUser(account: Account | null): Promise<void> {
     // The previous set's agents were stopped by the backend.
     ...(changed ? { liveTabIds: new Set<string>(), busy: {}, attention: {} } : {})
   }))
+  // General chats belong to the account too.
+  await useChatStore.getState().reload()
   if (!account) return
   const synced = useStore.getState().restoreFromCloud()
   // Just signed in from the signed-out view: offer to bring this computer's
-  // projects along (after syncing, so ones already in the account aren't offered).
-  if (previous === null) void synced.then(() => offerGuestProjects(account))
+  // projects and chats along (after syncing, so projects already in the
+  // account aren't offered).
+  if (previous === null) void synced.then(() => offerGuestData(account))
 }
 
-/** On sign-in: "Add the projects saved on this computer to your account?" */
-async function offerGuestProjects(account: Account): Promise<void> {
+/** On sign-in: "Add the projects (and chats) saved on this computer to your account?" */
+async function offerGuestData(account: Account): Promise<void> {
   if (shownUser !== account.id) return
   const guest = await window.fleet.guestData()
+  const chats = (await window.fleet.guestChats?.().catch(() => [])) ?? []
   const s = useStore.getState()
   const ids = new Set(s.projects.map((p) => p.id))
   const paths = new Set(s.projects.map((p) => p.localPath))
   const candidates = guest.projects.filter((p) => !ids.has(p.id) && !paths.has(p.localPath))
-  if (candidates.length === 0) return
+  if (candidates.length === 0 && chats.length === 0) return
 
   const n = candidates.length
-  const one = n === 1
-  const list = candidates.slice(0, 6).map((p) => `   • ${p.name}`).join('\n') + (n > 6 ? `\n   … and ${n - 6} more` : '')
+  const c = chats.length
+  const one = n + c === 1
+  const what = [
+    n ? (n === 1 ? 'the project' : `the ${n} projects`) : '',
+    c ? (c === 1 ? 'the chat' : `the ${c} chats`) : ''
+  ].filter(Boolean).join(' and ')
+  const list = [
+    ...candidates.slice(0, 6).map((p) => `   • ${p.name}`),
+    ...(n > 6 ? [`   … and ${n - 6} more`] : []),
+    ...(c ? [`   • ${c} chat${c === 1 ? '' : 's'}`] : [])
+  ].join('\n')
+  const kept = c
+    ? "shown while you're signed in; projects also sync to your other devices"
+    : 'synced, shown while signed in'
   const ok = confirm(
-    `Add ${one ? 'the project' : `the ${n} projects`} saved on this computer to ${account.email ?? 'your account'}?\n\n${list}\n\n` +
-      `OK: move ${one ? 'it' : 'them'} into your account (synced, shown while signed in).\n` +
+    `Add ${what} saved on this computer to ${account.email ?? 'your account'}?\n\n${list}\n\n` +
+      `OK: move ${one ? 'it' : 'them'} into your account (${kept}).\n` +
       `Cancel: keep ${one ? 'it' : 'them'} on this computer only (shown while signed out).`
   )
   if (!ok || shownUser !== account.id) return
 
+  if (c) {
+    await window.fleet.adoptGuestChats()
+    await useChatStore.getState().reload()
+  }
+  if (!n) return
   const moved = await window.fleet.adoptGuestProjects(candidates.map((p) => p.id))
   useStore.setState((st) => ({
     projects: [...st.projects, ...moved.projects],

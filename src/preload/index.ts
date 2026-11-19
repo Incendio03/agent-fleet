@@ -13,7 +13,13 @@ import {
   type UpdateTabOptions,
   type Project,
   type Tab,
-  type TabStatus
+  type TabStatus,
+  type Chat,
+  type ChatEvent,
+  type ChatLive,
+  type ChatMessage,
+  type CreateChatOptions,
+  type UpdateChatOptions
 } from '../shared/types'
 
 /**
@@ -104,6 +110,27 @@ const api = {
   listMessages: (projectId: string): Promise<FleetMessage[]> => ipcRenderer.invoke(IPC.messagesList, projectId),
   sessionNames: (projectId: string): Promise<Record<string, string>> =>
     ipcRenderer.invoke(IPC.sessionNames, projectId),
+
+  // --- General chats ---
+  listChats: (): Promise<Chat[]> => ipcRenderer.invoke(IPC.chatList),
+  createChat: (opts: CreateChatOptions): Promise<Chat> => ipcRenderer.invoke(IPC.chatCreate, opts),
+  chatMessages: (chatId: string): Promise<ChatMessage[]> => ipcRenderer.invoke(IPC.chatMessages, chatId),
+  /** Save the message (images as data URLs) and start the reply, which streams via onChatEvent. */
+  sendChat: (chatId: string, text: string, images: string[]): Promise<ChatMessage> =>
+    ipcRenderer.invoke(IPC.chatSend, chatId, text, images),
+  retryChat: (chatId: string): Promise<void> => ipcRenderer.invoke(IPC.chatRetry, chatId),
+  stopChat: (chatId: string): Promise<void> => ipcRenderer.invoke(IPC.chatStop, chatId),
+  updateChat: (chatId: string, opts: UpdateChatOptions): Promise<Chat> =>
+    ipcRenderer.invoke(IPC.chatUpdate, chatId, opts),
+  deleteChat: (chatId: string): Promise<void> => ipcRenderer.invoke(IPC.chatDelete, chatId),
+  liveChats: (): Promise<Record<string, ChatLive>> => ipcRenderer.invoke(IPC.chatLive),
+  guestChats: (): Promise<Chat[]> => ipcRenderer.invoke(IPC.chatGuest),
+  adoptGuestChats: (): Promise<Chat[]> => ipcRenderer.invoke(IPC.chatAdoptGuest),
+  onChatEvent: (cb: (ev: ChatEvent) => void): (() => void) => {
+    const h = (_e: unknown, ev: ChatEvent): void => cb(ev)
+    ipcRenderer.on(IPC.chatEvent, h)
+    return () => ipcRenderer.removeListener(IPC.chatEvent, h)
+  },
 
   // --- Image viewer ---
   resolveImage: (tabId: string, n: number): Promise<string | null> =>

@@ -126,6 +126,21 @@ export async function agentPath(id: AgentKind): Promise<ResolvedCommand | null> 
   return resolveCommand('codex')
 }
 
+/**
+ * How to run an agent CLI as a plain child process with piped input/output
+ * (general chat), rather than inside a terminal. A terminal can launch npm's
+ * `.cmd` shim directly; a plain spawn can't, so Claude is resolved the same
+ * careful way as Codex (real .exe, or the shim's script run with Node).
+ */
+export async function agentCommand(id: AgentKind): Promise<ResolvedCommand | null> {
+  if (id !== 'claude') return resolveCommand('codex')
+  const caps = await detectClaude()
+  if (!caps.helpText) return null
+  const pinned = process.env.FLEET_CLAUDE_PATH
+  if (pinned && existsSync(pinned)) return { file: caps.path, prefix: [] }
+  return (await resolveCommand('claude')) ?? { file: caps.path, prefix: [] }
+}
+
 /** Commands to sign in / out, and how to install, per agent. */
 export const AGENT_AUTH: Record<AgentKind, { login: string[]; logout: string[]; install: string; docs: string }> = {
   claude: {

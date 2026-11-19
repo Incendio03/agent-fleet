@@ -10,6 +10,8 @@ import { SidePanel } from './components/SidePanel'
 import { Composer } from './components/Composer'
 import { ImageViewer } from './components/ImageViewer'
 import { SplashScreen } from './components/SplashScreen'
+import { ChatView } from './components/ChatView'
+import { useChatStore } from './store/useChatStore'
 import { isCloudEnabled } from './lib/supabase'
 
 const readPref = (k: string, d: string): string => {
@@ -29,6 +31,10 @@ export default function App(): JSX.Element {
   const activeProjectId = useStore((s) => s.activeProjectId)
   const activeTabId = useStore((s) => s.activeTabId)
   const account = useStore((s) => s.account)
+  // A general chat is on screen (instead of the project view).
+  const chatOpen = useChatStore((s) => s.activeChatId !== null)
+  const chatsAvailable = useChatStore((s) => s.available)
+  const startChat = useChatStore((s) => s.startNew)
 
   const [showNewProject, setShowNewProject] = useState(false)
   const [showNewTab, setShowNewTab] = useState(false)
@@ -66,6 +72,15 @@ export default function App(): JSX.Element {
     void init()
   }, [init])
 
+  // Back from a chat to the project view: the cursor returns to the agent's message box.
+  useEffect(() => {
+    if (chatOpen) return
+    const raf = requestAnimationFrame(() => {
+      document.querySelector<HTMLTextAreaElement>('.composer .composer-input')?.focus()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [chatOpen])
+
   const resumeTab = useStore((s) => s.resumeTab)
   const liveTabIds = useStore((s) => s.liveTabIds)
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
@@ -80,7 +95,11 @@ export default function App(): JSX.Element {
     <div className={`app ${dragging ? 'dragging' : ''}`}>
       <ProjectSidebar onNewProject={() => setShowNewProject(true)} onEditProject={setEditProjectId} />
 
-      <main className="workspace">
+      {!loading && chatOpen && <ChatView />}
+
+      {/* The project view stays mounted (just hidden) while a chat is on screen:
+          unmounting it would throw away the terminals and their scrollback. */}
+      <main className="workspace" style={{ display: chatOpen ? 'none' : undefined }}>
         {loading ? (
           null
         ) : !activeProject ? (
@@ -94,7 +113,10 @@ export default function App(): JSX.Element {
                   : "You're signed out, so you're seeing projects saved on this computer only. Sign in to see your account's projects."}
               </p>
             )}
-            <button className="btn primary" onClick={() => setShowNewProject(true)}>+ New project</button>
+            <div className="center-actions">
+              <button className="btn primary" onClick={() => setShowNewProject(true)}>+ New project</button>
+              {chatsAvailable && <button className="btn" onClick={startChat}>Start a chat</button>}
+            </div>
           </div>
         ) : (
           <>

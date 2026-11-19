@@ -100,7 +100,7 @@ export function AgentBar({ tab }: { tab: Tab }): JSX.Element {
 const svg = { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
 
 /** Robot head: which agent program. */
-function IconAgent(): JSX.Element {
+export function IconAgent(): JSX.Element {
   return (
     <svg {...svg} aria-label="Agent">
       <rect x="4" y="8" width="16" height="12" rx="3" />
@@ -112,7 +112,7 @@ function IconAgent(): JSX.Element {
 }
 
 /** Chip: which model. */
-function IconModel(): JSX.Element {
+export function IconModel(): JSX.Element {
   return (
     <svg {...svg} aria-label="Model">
       <rect x="6" y="6" width="12" height="12" rx="2" />

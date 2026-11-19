@@ -159,6 +159,81 @@ export interface FleetMessage {
   text: string
 }
 
+// ---- General chats (not tied to a project) --------------------------------
+
+/**
+ * A general chat: a normal assistant conversation outside any project. The
+ * reply comes from one of the user's connected agent CLIs, run without access
+ * to files or a terminal (see main/chat.ts).
+ */
+export interface Chat {
+  id: string
+  title: string
+  /** Set once the user renames the chat, so automatic titles stop replacing it. */
+  titleLocked?: boolean
+  /** Which connected agent answers in this chat. */
+  agent: AgentKind
+  /** Model id for that agent ('' = the agent's own default). */
+  model: string
+  /**
+   * The agent CLI's own conversation id (Claude session / Codex thread) once it
+   * has one. Missing = the next message starts a new CLI conversation and
+   * carries the earlier messages along as text (after switching agent, or if
+   * the CLI no longer has the conversation).
+   */
+  sessionId?: string
+  /**
+   * Claude sessions this chat used before switching to another agent. Not used
+   * for answering any more; kept only so deleting the chat can remove them.
+   */
+  oldSessions?: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  ts: number
+  /** Absolute paths of the images attached to a user message. */
+  images?: string[]
+  /** Assistant messages: which agent/model answered. */
+  agent?: AgentKind
+  model?: string
+  /** The reply was stopped before it finished. */
+  stopped?: boolean
+  /** The reply failed; what went wrong (`text` may hold a partial reply). */
+  error?: string
+}
+
+/** Live progress of a chat reply, pushed from the backend. */
+export type ChatEvent =
+  | { chatId: string; type: 'delta'; text: string } // more reply text
+  | { chatId: string; type: 'text'; text: string } // the whole reply so far (replaces what's shown)
+  | { chatId: string; type: 'status'; status: string | null } // e.g. "Thinking…", "Searching the web…"
+  | { chatId: string; type: 'done'; message: ChatMessage; chat: Chat } // reply finished and saved
+  | { chatId: string; type: 'chat'; chat: Chat } // chat details changed (e.g. its title)
+
+/** A reply in progress (for re-syncing the UI after it reloads). */
+export interface ChatLive {
+  text: string
+  status: string | null
+}
+
+export interface CreateChatOptions {
+  agent: AgentKind
+  model: string
+  title?: string
+}
+
+/** Editable fields of a chat. Changing the agent starts a new CLI conversation. */
+export interface UpdateChatOptions {
+  title?: string
+  agent?: AgentKind
+  model?: string
+}
+
 // ---- IPC channel names (single source of truth) --------------------------
 
 export const IPC = {
@@ -200,7 +275,19 @@ export const IPC = {
   imageResolve: 'image:resolve', // [Image #N] in a tab -> file path on disk
   imageRead: 'image:read', // image file -> data URL for the viewer
   imageReveal: 'image:reveal', // show an image file in Explorer
+  chatList: 'chat:list', // general chats of the current account
+  chatCreate: 'chat:create',
+  chatMessages: 'chat:messages', // a chat's saved messages
+  chatSend: 'chat:send', // save the user's message and start the reply (streams via chat:event)
+  chatRetry: 'chat:retry', // run the last message again after a failed/stopped reply
+  chatStop: 'chat:stop', // stop the reply in progress
+  chatUpdate: 'chat:update', // rename / change agent or model
+  chatDelete: 'chat:delete',
+  chatLive: 'chat:live', // replies in progress (chatId -> text so far), for a reloaded UI
+  chatGuest: 'chat:guest', // chats saved on this computer while signed out
+  chatAdoptGuest: 'chat:adoptGuest', // move signed-out chats into the signed-in account
   // main -> renderer (events, pushed from backend)
+  chatEvent: 'chat:event', // progress of a chat reply
   tabData: 'tab:data', // terminal output chunk
   tabExit: 'tab:exit', // process exited
   tabStatus: 'tab:status', // status changed

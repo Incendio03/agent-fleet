@@ -18,17 +18,33 @@ import {
   type AgentStatus,
   type FleetMessage,
   type Project,
-  type Tab
+  type Tab,
+  type Chat,
+  type ChatEvent,
+  type ChatLive,
+  type ChatMessage,
+  type CreateChatOptions,
+  type UpdateChatOptions
 } from '@shared/types'
 import { store } from './store'
 import { sessionManager } from './sessionManager'
 import { createWorktree, removeWorktree, isGitRepo } from './worktree'
-import { detectAgents, agentOf, agentStatus, agentPath, agentLogout, AGENT_AUTH } from './agents'
+import { detectAgents, agentOf, agentStatus, agentPath, agentCommand, agentLogout, AGENT_AUTH } from './agents'
+import { detectClaude } from './claude'
 import { homedir } from 'node:os'
 import { getPrefs, setPrefs } from './prefs'
 import { teamContext, projectMessages, projectSessionNames, readBoard, writeBoard } from './team'
+import { ChatManager } from './chat'
+import { chatStoreAt, cleanTitle, type ChatStore } from './chatStore'
 
 const execFileAsync = promisify(execFile)
+
+let chatManager: ChatManager | null = null
+
+/** Stop every chat reply and chat CLI process (the app is quitting). */
+export function shutdownChats(): void {
+  void chatManager?.shutdown()
+}
 
 /**
  * Registers every IPC handler (the "waiter" between the React UI and the
@@ -52,6 +68,147 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   sessionManager.on('exit', (tabId, exitCode) => {
     store.updateTab(tabId, { exitCode })
     broadcast(IPC.tabExit, tabId, exitCode)
+  })
+
+  // --- General chats ----------------------------------------------------------
+  // Chats of whichever account is open (same rule as projects; see store.chatsDir).
+  const chats = (): ChatStore => chatStoreAt(store.chatsDir())
+  const chatEvent = (ev: ChatEvent): void => broadcast(IPC.chatEvent, ev)
+  const manager = (chatManager = new ChatManager({
+    resolve: agentCommand,
+    claudeHelp: async () => (await detectClaude()).helpText,
+    // A folder of its own, so chats never run inside (or see) a project.
+    cwd: async () => {
+      const dir = join(app.getPath('userData'), 'chat')
+      await mkdir(dir, { recursive: true })
+      return dir
+    },
+    emit: chatEvent,
+    // The small/fast model names the chat, when this CLI has one.
+    titleModel: async (agent) =>
+      (await detectAgents()).find((a) => a.id === agent)?.models.some((m) => m.id === 'haiku') ? 'haiku' : ''
+  }))
+
+  /** Chats whose message is being saved right now (a reply is about to start). */
+  const sending = new Set<string>()
+  const busy = (chatId: string): boolean => manager.isBusy(chatId) || sending.has(chatId)
+
+  /** Run a reply in the background; if it can't even start, tell the UI so it stops waiting. */
+  const startReply = (st: ChatStore, chat: Chat): void => {
+    manager.reply(st, chat.id).catch((err: Error) => {
+      chatEvent({
+        chatId: chat.id,
+        type: 'done',
+        chat,
+        message: { id: randomUUID(), role: 'assistant', text: '', ts: Date.now(), agent: chat.agent, error: err.message }
+      })
+    })
+  }
+
+  ipcMain.handle(IPC.chatList, async (): Promise<Chat[]> => chats().list())
+
+  ipcMain.handle(IPC.chatCreate, async (_e, opts: CreateChatOptions): Promise<Chat> =>
+    chats().create({
+      agent: opts?.agent === 'codex' ? 'codex' : 'claude',
+      model: typeof opts?.model === 'string' ? opts.model : '',
+      title: typeof opts?.title === 'string' ? opts.title : undefined
+    })
+  )
+
+  ipcMain.handle(IPC.chatMessages, async (_e, chatId: string): Promise<ChatMessage[]> => chats().messages(chatId))
+
+  // Save the user's message (and any pasted images, sent as data URLs), then
+  // start the reply. Returns the saved message; the reply streams as events.
+  ipcMain.handle(IPC.chatSend, async (_e, chatId: string, text: string, images: string[] = []): Promise<ChatMessage> => {
+    const st = chats()
+    const chat = await st.get(chatId)
+    if (!chat) throw new Error('Chat not found.')
+    if (busy(chatId)) throw new Error('This chat is still replying.')
+    const clean = String(text ?? '').replace(/\r\n?/g, '\n').trim()
+    const pics = Array.isArray(images) ? images.slice(0, 8) : []
+    if (!clean && !pics.length) throw new Error('Type a message first.')
+    sending.add(chatId)
+    try {
+      const paths: string[] = []
+      for (const dataUrl of pics) paths.push(await st.saveImage(chatId, dataUrl))
+      const message: ChatMessage = {
+        id: randomUUID(),
+        role: 'user',
+        text: clean,
+        ts: Date.now(),
+        ...(paths.length ? { images: paths } : {})
+      }
+      await st.appendMessage(chatId, message)
+      startReply(st, await st.update(chatId, { updatedAt: Date.now() }))
+      return message
+    } finally {
+      sending.delete(chatId) // by now the reply itself holds the chat busy
+    }
+  })
+
+  // Run the last message again (after a failed or stopped reply), dropping that reply.
+  ipcMain.handle(IPC.chatRetry, async (_e, chatId: string): Promise<void> => {
+    const st = chats()
+    const chat = await st.get(chatId)
+    if (!chat) throw new Error('Chat not found.')
+    if (busy(chatId)) throw new Error('This chat is still replying.')
+    sending.add(chatId)
+    try {
+      if (!(await st.rewindToLastUserMessage(chatId))) throw new Error('There is no message to retry.')
+      startReply(st, chat)
+    } finally {
+      sending.delete(chatId)
+    }
+  })
+
+  ipcMain.handle(IPC.chatStop, async (_e, chatId: string): Promise<void> => manager.stop(chatId))
+
+  // Rename, or change who answers. A different agent can't open the other one's
+  // conversation, so it starts its own and is given the messages so far as text.
+  ipcMain.handle(IPC.chatUpdate, async (_e, chatId: string, opts: UpdateChatOptions): Promise<Chat> => {
+    const st = chats()
+    const chat = await st.get(chatId)
+    if (!chat) throw new Error('Chat not found.')
+    const patch: Partial<Chat> = {}
+    if (typeof opts?.title === 'string') {
+      const title = cleanTitle(opts.title)
+      if (!title) throw new Error('Name is required.')
+      patch.title = title
+      patch.titleLocked = true
+    }
+    const agent: AgentKind = opts?.agent === 'codex' ? 'codex' : opts?.agent === 'claude' ? 'claude' : chat.agent
+    const model = typeof opts?.model === 'string' ? opts.model : chat.model
+    if (agent !== chat.agent || model !== chat.model) {
+      if (busy(chatId)) throw new Error('Wait for the reply to finish first.')
+      patch.agent = agent
+      patch.model = model
+      if (agent !== chat.agent) {
+        // Keep track of the Claude conversation left behind, so deleting the
+        // chat later can remove it too.
+        if (chat.agent === 'claude' && chat.sessionId) patch.oldSessions = [...(chat.oldSessions ?? []), chat.sessionId]
+        patch.sessionId = undefined
+        await manager.forget(chatId)
+      }
+    }
+    return st.update(chatId, patch)
+  })
+
+  ipcMain.handle(IPC.chatDelete, async (_e, chatId: string): Promise<void> => {
+    const st = chats()
+    const chat = await st.get(chatId)
+    if (chat) await manager.discard(chat) // stops it and removes the CLI's copy of the conversation
+    await st.remove(chatId)
+  })
+
+  ipcMain.handle(IPC.chatLive, (): Record<string, ChatLive> => manager.live())
+
+  // Chats made while signed out, offered to an account on sign-in (like projects).
+  ipcMain.handle(IPC.chatGuest, async (): Promise<Chat[]> =>
+    store.currentUser() ? chatStoreAt(store.chatsDir(null)).list() : []
+  )
+  ipcMain.handle(IPC.chatAdoptGuest, async (): Promise<Chat[]> => {
+    if (!store.currentUser()) throw new Error('Not signed in.')
+    return chats().adoptAll(chatStoreAt(store.chatsDir(null)))
   })
 
   // --- Projects -------------------------------------------------------------
@@ -282,6 +439,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   // Show the signed-in account's projects (null = signed out). Agents of the
   // previous set's tabs are stopped: they belong to someone else's view.
   ipcMain.handle(IPC.storeSetUser, async (_e, userId: string | null): Promise<{ changed: boolean }> => {
+    // Chats in progress belong to the account being left: stop them first, so
+    // what they have so far is saved with that account.
+    if ((userId || null) !== store.currentUser()) await manager.shutdown()
     const { changed, previousTabIds } = await store.setUser(userId || null)
     for (const id of previousTabIds) sessionManager.kill(id)
     return { changed }
@@ -298,6 +458,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   // Open the GitHub OAuth page in the user's real browser (desktop apps can't
   // do the redirect dance inside the app window).
   ipcMain.handle(IPC.openExternal, async (_e, url: string): Promise<void> => {
+    // Web and mail links only: chat replies can contain links, and anything
+    // else (file:, custom app schemes) must never be handed to the OS to open.
+    if (typeof url !== 'string' || !/^(https?:\/\/|mailto:)/i.test(url)) throw new Error('Only web links can be opened.')
     await shell.openExternal(url)
   })
 
