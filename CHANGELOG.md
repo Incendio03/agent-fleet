@@ -33,6 +33,8 @@ The running version is shown in the app's sidebar header.
 
 
 ### Fixed
+- Windows notifications were titled "electron.app.Electron"; they now say "Agent Fleet"
+  (AppUserModelID; `com.agentfleet.app` when packaged).
 - Side browser: links that open a new tab (target=_blank, window.open) did nothing
   or fell back to another URL — the page view lacked `allowpopups`, so popups were
   blocked before our handler. Now they open as browser tabs; window.open() returns a

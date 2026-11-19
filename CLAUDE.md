@@ -110,11 +110,12 @@ Gotchas learned:
   checks the OS clipboard via a sync IPC (clipboard:hasImage).
 
 ## Open threads / next steps (START HERE)
-1. **Safe window reload (Ctrl+R).** Keep agents running in main while the renderer
-   reloads: buffer recent PTY output in main and report live tabs on init.
+(Safe Ctrl+R window reload was considered and dropped: full restarts are only a
+dev-time cost; the deployed app won't need them.)
 2. **Codex parity.** Codex tabs resume via `codex resume --last` (can pick another
    Codex tab's session in the same folder) and have no named sessions/messaging.
-3. **Deployment (deferred until stable).** Package with electron-builder; add
+3. **Deployment (deferred until stable).** Package with electron-builder (set
+   `appId: com.agentfleet.app` to match `setAppUserModelId` in main/index.ts); add
    electron-updater + GitHub Releases for auto-update (install once, self-updates).
    SemVer/CHANGELOG/tags are already in place to support this.
 5. **Nice-to-haves:** save terminal transcripts; per-tab "open PR" button; auto-clone a

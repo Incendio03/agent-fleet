@@ -76,6 +76,14 @@ function createWindow(): void {
   }
 }
 
+// Windows shows the AppUserModelID as the title of notifications. Unregistered
+// IDs (dev) are shown verbatim, so use the display name there; a packaged build
+// registers this appId with its Start-menu shortcut (keep electron-builder's
+// appId in sync). Don't app.setName(): it would move userData (projects/tabs).
+if (process.platform === 'win32') {
+  app.setAppUserModelId(app.isPackaged ? 'com.agentfleet.app' : 'Agent Fleet')
+}
+
 // Single instance so the loopback auth server port is never double-bound.
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
