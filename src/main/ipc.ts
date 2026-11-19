@@ -279,6 +279,21 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     }
   )
 
+  // Show the signed-in account's projects (null = signed out). Agents of the
+  // previous set's tabs are stopped: they belong to someone else's view.
+  ipcMain.handle(IPC.storeSetUser, async (_e, userId: string | null): Promise<{ changed: boolean }> => {
+    const { changed, previousTabIds } = await store.setUser(userId || null)
+    for (const id of previousTabIds) sessionManager.kill(id)
+    return { changed }
+  })
+  ipcMain.handle(IPC.storeGuestData, async (): Promise<{ projects: Project[]; tabs: Tab[] }> => store.guestData())
+  ipcMain.handle(IPC.storeAdoptGuest, async (_e, projectIds: string[]): Promise<{ projects: Project[]; tabs: Tab[] }> =>
+    store.adoptGuestProjects(projectIds)
+  )
+  ipcMain.handle(IPC.storeRemove, async (_e, projectIds: string[], tabIds: string[]): Promise<void> =>
+    store.removeEntries(projectIds, tabIds)
+  )
+
   // --- Auth / system --------------------------------------------------------
   // Open the GitHub OAuth page in the user's real browser (desktop apps can't
   // do the redirect dance inside the app window).

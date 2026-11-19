@@ -24,6 +24,21 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 ### Added
+- **Separate projects per account.** Each signed-in account sees only its own
+  projects and agents; signed out, you see the ones saved on this computer.
+  Signing out hides the account's projects (nothing is deleted) and signing back
+  in brings them back. Switching stops the running agents of the old set (with a
+  warning); they can be resumed. The sidebar says which set you're looking at
+  ("Your account" / "This computer"). Existing data moves to the account that is
+  signed in the first time this version runs.
+- **Bring local projects into your account.** Signing in when this computer has
+  projects your account doesn't asks whether to move them into the account.
+- **Deletions sync across devices.** A project or agent deleted on one device is
+  removed on the others (unless its agent is running there). Things created
+  offline are uploaded on the next sync; deletes made offline are retried.
+- **Agent kind syncs** (Claude/Codex), so a Codex tab restores as Codex on another
+  device. Needs `supabase/migrations/0003_tab_agent.sql`; sync keeps working
+  without it.
 - **"Needs you" alerts.** Claude agents launch with hooks (`--settings`) that tell
   the app when they start working, finish, or need you (permission / input). Tabs
   show a spinner while working, ✓ when finished unseen, ! when they need you or

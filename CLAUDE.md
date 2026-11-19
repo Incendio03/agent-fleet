@@ -33,7 +33,8 @@ src/
     team.ts             named agents (--name), team prompt, .fleet/board.md, messages
                         read from Claude transcripts (~/.claude/projects/<cwd>/<sid>.jsonl)
     authServer.ts       loopback HTTP server on 127.0.0.1:8923 for OAuth redirect
-    store.ts            local JSON persistence (userData/data/store.json)
+    store.ts            local JSON persistence: data/store.json (signed out) or
+                        data/users/<userId>.json (per account; renderer picks via store:setUser)
   preload/index.ts      the secure window.fleet bridge (only API the UI can call)
   renderer/src/
     App.tsx             layout; mounts terminals; resume overlay
@@ -49,6 +50,11 @@ supabase/migrations/    SQL schema + RLS (0001_init, 0002_session_id)
 ## Key design decisions (don't undo without reason)
 - **Local-first.** The app always reads/writes `store.json` locally and works fully
   offline. Supabase is optional; when configured it mirrors data for cross-device sync.
+- **Projects are per account.** Signed in = that account's projects only (mirrors the
+  cloud, incl. deletions via known-id bookkeeping in cloudSync.ts); signed out = this
+  computer's. Sign-in offers to move signed-out projects into the account.
+- **Multi-file changes go in a git worktree** (e.g. `../agent-fleet-<topic>`): the app
+  runs from this folder with HMR, so half-done edits break the user's live app.
 - **A tab = an agent/role, not a task.** The new-agent dialog asks for a name/role +
   optional instructions. Agents run **directly in the project folder** by default.
 - **Worktrees are opt-in** (`CreateTabOptions.isolate`, default false). The UI does

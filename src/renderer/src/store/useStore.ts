@@ -16,8 +16,9 @@ import {
   pushTab,
   deleteProjectCloud,
   deleteTabCloud,
-  pullAll
+  reconcile
 } from '../lib/cloudSync'
+import { accountOf, currentAccount, onAuthChange, type Account } from '../lib/supabase'
 
 /**
  * Central UI state. Components read from here and call these actions; the
@@ -64,6 +65,13 @@ interface FleetState {
   setTabStatus: (tabId: string, status: TabStatus) => void
   setError: (msg: string | null) => void
   restoreFromCloud: () => Promise<void>
+  /** Signed-in account whose projects are shown; null = signed out (this computer's). */
+  account: Account | null
+  /**
+   * Show this account's projects (null = signed out, i.e. the ones saved on
+   * this computer). Switching stops the previous set's agents.
+   */
+  switchUser: (account: Account | null) => Promise<void>
   openImage: (path: string) => Promise<void>
   closeImage: () => void
 }
@@ -80,6 +88,7 @@ export const useStore = create<FleetState>((set, get) => ({
   busy: {},
   attention: {},
   agents: [],
+  account: null,
 
   openImage: async (path) => {
     try {
@@ -93,11 +102,14 @@ export const useStore = create<FleetState>((set, get) => ({
   init: async () => {
     set({ loading: true })
     try {
-      const [projects, tabs] = await Promise.all([
-        window.fleet.listProjects(),
-        window.fleet.listTabs()
-      ])
-      set({ projects, tabs })
+      // Load the signed-in account's projects (or this computer's when signed
+      // out), then follow sign-in/sign-out. SIGNED_OUT is the only event that
+      // means "signed out": other events can carry no session while offline.
+      await get().switchUser(await currentAccount())
+      onAuthChange((session, event) => {
+        if (event === 'SIGNED_OUT') void get().switchUser(null)
+        else if (session) void get().switchUser(accountOf(session))
+      })
       // Detect installed agent CLIs in the background (feeds the agent/model dropdowns).
       void window.fleet.listAgents().then((agents) => set({ agents })).catch(() => {})
       // Subscribe once to live backend events that mutate tab state.
@@ -301,45 +313,123 @@ export const useStore = create<FleetState>((set, get) => ({
 
   setError: (msg) => set({ error: msg }),
 
-  // Pull the signed-in user's projects/tabs from Supabase, PERSIST the new ones
-  // into the backend store (so tab:create can find them), then merge into view.
-  // Dedupe projects by id AND localPath so the same folder isn't shown twice.
-  // Restored tabs have no live process here, so force their status to 'idle'.
-  // Startup and the auth listener can both call this at once; share one run.
+  // Sync the shown account with the cloud (see doRestore). Startup and the auth
+  // listener can both call this at once; share one run.
   restoreFromCloud: () => {
     restoreInFlight ??= doRestore().finally(() => { restoreInFlight = null })
     return restoreInFlight
+  },
+
+  // Serialized: sign-in events can arrive back to back.
+  switchUser: (account) => {
+    const run = switchChain.then(() => doSwitchUser(account))
+    switchChain = run.catch(() => {})
+    return run
   }
 }))
 
 let restoreInFlight: Promise<void> | null = null
+let switchChain: Promise<void> = Promise.resolve()
+/** Id of the account whose projects are shown (null = signed out); undefined until the first switch. */
+let shownUser: string | null | undefined
 
+async function doSwitchUser(account: Account | null): Promise<void> {
+  const set = useStore.setState
+  const userId = account?.id ?? null
+  if (userId === shownUser) {
+    if (account) {
+      set({ account })
+      void useStore.getState().restoreFromCloud() // e.g. token refresh: pick up other devices' changes
+    }
+    return
+  }
+  const previous = shownUser
+  const { changed } = await window.fleet.setStoreUser(userId)
+  shownUser = userId
+  const [projects, tabs] = await Promise.all([window.fleet.listProjects(), window.fleet.listTabs()])
+  set((s) => ({
+    account,
+    projects,
+    tabs,
+    activeProjectId: projects.some((p) => p.id === s.activeProjectId) ? s.activeProjectId : projects[0]?.id ?? null,
+    activeTabId: tabs.some((t) => t.id === s.activeTabId) ? s.activeTabId : null,
+    // The previous set's agents were stopped by the backend.
+    ...(changed ? { liveTabIds: new Set<string>(), busy: {}, attention: {} } : {})
+  }))
+  if (!account) return
+  const synced = useStore.getState().restoreFromCloud()
+  // Just signed in from the signed-out view: offer to bring this computer's
+  // projects along (after syncing, so ones already in the account aren't offered).
+  if (previous === null) void synced.then(() => offerGuestProjects(account))
+}
+
+/** On sign-in: "Add the projects saved on this computer to your account?" */
+async function offerGuestProjects(account: Account): Promise<void> {
+  if (shownUser !== account.id) return
+  const guest = await window.fleet.guestData()
+  const s = useStore.getState()
+  const ids = new Set(s.projects.map((p) => p.id))
+  const paths = new Set(s.projects.map((p) => p.localPath))
+  const candidates = guest.projects.filter((p) => !ids.has(p.id) && !paths.has(p.localPath))
+  if (candidates.length === 0) return
+
+  const n = candidates.length
+  const one = n === 1
+  const list = candidates.slice(0, 6).map((p) => `   • ${p.name}`).join('\n') + (n > 6 ? `\n   … and ${n - 6} more` : '')
+  const ok = confirm(
+    `Add ${one ? 'the project' : `the ${n} projects`} saved on this computer to ${account.email ?? 'your account'}?\n\n${list}\n\n` +
+      `OK: move ${one ? 'it' : 'them'} into your account (synced, shown while signed in).\n` +
+      `Cancel: keep ${one ? 'it' : 'them'} on this computer only (shown while signed out).`
+  )
+  if (!ok || shownUser !== account.id) return
+
+  const moved = await window.fleet.adoptGuestProjects(candidates.map((p) => p.id))
+  useStore.setState((st) => ({
+    projects: [...st.projects, ...moved.projects],
+    tabs: [...st.tabs, ...moved.tabs],
+    activeProjectId: st.activeProjectId ?? moved.projects[0]?.id ?? null
+  }))
+  for (const p of moved.projects) await pushProject(p)
+  for (const t of moved.tabs) await pushTab(t)
+}
+
+// Sync the shown account with the cloud: add what's new there, drop what was
+// deleted on another device, upload what was never uploaded. New entries are
+// persisted to the backend store first (so tab:create can find them) and come
+// in idle (no live process here). Tabs with a live agent here are kept, along
+// with their project.
 async function doRestore(): Promise<void> {
   const get = useStore.getState
   const set = useStore.setState
-  {
-    const snap = await pullAll()
-    if (!snap) return
-    const s = get()
-    const existingIds = new Set(s.projects.map((p) => p.id))
-    const existingPaths = new Set(s.projects.map((p) => p.localPath))
-    const newProjects = snap.projects.filter(
-      (p) => !existingIds.has(p.id) && !existingPaths.has(p.localPath)
-    )
-    // Only accept tabs whose project will actually exist locally.
-    const validProjectIds = new Set([...existingIds, ...newProjects.map((p) => p.id)])
-    const existingTabIds = new Set(s.tabs.map((t) => t.id))
-    const newTabs = snap.tabs
-      .filter((t) => !existingTabIds.has(t.id) && validProjectIds.has(t.projectId))
-      .map((t) => ({ ...t, status: 'idle' as TabStatus }))
+  const forUser = shownUser
+  if (!forUser) return
+  const before = get()
+  const changes = await reconcile({ projects: before.projects, tabs: before.tabs })
+  // Signed out or switched account meanwhile: this isn't for the current view.
+  if (!changes || shownUser !== forUser) return
 
-    if (newProjects.length || newTabs.length) {
-      // Write to the backend store first — this is what fixes "Project not found".
-      await window.fleet.importData(newProjects, newTabs)
-      set((st) => ({
-        projects: [...st.projects, ...newProjects],
-        tabs: [...st.tabs, ...newTabs]
-      }))
+  const live = get().liveTabIds
+  const liveProjects = new Set(get().tabs.filter((t) => live.has(t.id)).map((t) => t.projectId))
+  const removeProjectIds = changes.removeProjectIds.filter((id) => !liveProjects.has(id))
+  const removeTabIds = changes.removeTabIds.filter((id) => !live.has(id))
+  const addProjects = changes.addProjects
+  const addTabs = changes.addTabs.map((t) => ({ ...t, status: 'idle' as TabStatus }))
+  if (!removeProjectIds.length && !removeTabIds.length && !addProjects.length && !addTabs.length) return
+
+  if (removeProjectIds.length || removeTabIds.length) await window.fleet.removeEntries(removeProjectIds, removeTabIds)
+  if (addProjects.length || addTabs.length) await window.fleet.importData(addProjects, addTabs)
+  if (shownUser !== forUser) return
+
+  const goneP = new Set(removeProjectIds)
+  const goneT = new Set(removeTabIds)
+  set((st) => {
+    const projects = [...st.projects.filter((p) => !goneP.has(p.id)), ...addProjects]
+    const tabs = [...st.tabs.filter((t) => !goneP.has(t.projectId) && !goneT.has(t.id)), ...addTabs]
+    return {
+      projects,
+      tabs,
+      activeProjectId: projects.some((p) => p.id === st.activeProjectId) ? st.activeProjectId : projects[0]?.id ?? null,
+      activeTabId: tabs.some((t) => t.id === st.activeTabId) ? st.activeTabId : null
     }
-  }
+  })
 }

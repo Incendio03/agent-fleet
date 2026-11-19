@@ -10,6 +10,7 @@ import { SidePanel } from './components/SidePanel'
 import { Composer } from './components/Composer'
 import { ImageViewer } from './components/ImageViewer'
 import { SplashScreen } from './components/SplashScreen'
+import { isCloudEnabled } from './lib/supabase'
 
 const readPref = (k: string, d: string): string => {
   try { return localStorage.getItem(k) ?? d } catch { return d }
@@ -27,6 +28,7 @@ export default function App(): JSX.Element {
   const tabs = useStore((s) => s.tabs)
   const activeProjectId = useStore((s) => s.activeProjectId)
   const activeTabId = useStore((s) => s.activeTabId)
+  const account = useStore((s) => s.account)
 
   const [showNewProject, setShowNewProject] = useState(false)
   const [showNewTab, setShowNewTab] = useState(false)
@@ -85,6 +87,13 @@ export default function App(): JSX.Element {
           <div className="center-hint">
             <h1>Welcome to Agent Fleet</h1>
             <p>Create a project to start launching agents.</p>
+            {isCloudEnabled && (
+              <p className="scope-note">
+                {account
+                  ? `Projects you create are saved to ${account.email ?? 'your account'} and sync across your devices.`
+                  : "You're signed out, so you're seeing projects saved on this computer only. Sign in to see your account's projects."}
+              </p>
+            )}
             <button className="btn primary" onClick={() => setShowNewProject(true)}>+ New project</button>
           </div>
         ) : (

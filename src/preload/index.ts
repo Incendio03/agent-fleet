@@ -114,6 +114,13 @@ const api = {
   // --- Sync / system ---
   importData: (projects: Project[], tabs: Tab[]): Promise<void> =>
     ipcRenderer.invoke(IPC.storeImport, { projects, tabs }),
+  setStoreUser: (userId: string | null): Promise<{ changed: boolean }> =>
+    ipcRenderer.invoke(IPC.storeSetUser, userId),
+  guestData: (): Promise<{ projects: Project[]; tabs: Tab[] }> => ipcRenderer.invoke(IPC.storeGuestData),
+  adoptGuestProjects: (projectIds: string[]): Promise<{ projects: Project[]; tabs: Tab[] }> =>
+    ipcRenderer.invoke(IPC.storeAdoptGuest, projectIds),
+  removeEntries: (projectIds: string[], tabIds: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.storeRemove, projectIds, tabIds),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke(IPC.openExternal, url),
   cloneRepo: (githubUrl: string, name: string): Promise<string> =>
     ipcRenderer.invoke(IPC.cloneRepo, githubUrl, name),

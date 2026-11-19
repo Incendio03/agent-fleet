@@ -184,6 +184,10 @@ export const IPC = {
   openExternal: 'app:openExternal',
   cloneRepo: 'project:clone',
   storeImport: 'store:import',
+  storeSetUser: 'store:setUser', // switch to a signed-in account's projects (null = signed out)
+  storeGuestData: 'store:guestData', // projects saved on this computer while signed out
+  storeAdoptGuest: 'store:adoptGuest', // move signed-out projects into the signed-in account
+  storeRemove: 'store:remove', // drop entries from the list only (deleted on another device)
   browserCapture: 'browser:capture', // screenshot a <webview> by webContentsId
   clipboardImage: 'clipboard:image', // system clipboard image as PNG data URL (or null)
   clipboardHasImage: 'clipboard:hasImage', // SYNC: is there an image on the OS clipboard?

@@ -3,9 +3,7 @@ import {
   isCloudEnabled,
   startGitHubLogin,
   completeLoginFromCallback,
-  signOut,
-  getSession,
-  onAuthChange
+  signOut
 } from '../lib/supabase'
 import { useStore } from '../store/useStore'
 
@@ -14,35 +12,30 @@ import { useStore } from '../store/useStore'
  *
  * - Cloud not configured  -> shows a quiet "Local only" note.
  * - Signed out            -> "Sign in with GitHub".
- * - Signed in             -> email + sign out; restores cloud data on login.
+ * - Signed in             -> email + sign out.
+ * Which projects are shown follows the sign-in (the store's switchUser).
  */
 export function AuthBar({ compact = false }: { compact?: boolean } = {}): JSX.Element {
-  const restoreFromCloud = useStore((s) => s.restoreFromCloud)
   const setError = useStore((s) => s.setError)
-  const [email, setEmail] = useState<string | null>(null)
+  const account = useStore((s) => s.account)
+  const liveCount = useStore((s) => s.liveTabIds.size)
   const [busy, setBusy] = useState(false)
+  // "Signed in" once the store shows the account's projects.
+  const email = account ? account.email ?? 'Signed in' : null
 
   useEffect(() => {
     if (!isCloudEnabled) return
-
-    void getSession().then((s) => setEmail(s?.user?.email ?? null))
-
-    // React to login/logout; pull cloud data when a session appears.
-    const offAuth = onAuthChange((session) => {
-      setEmail(session?.user?.email ?? null)
-      if (session) void restoreFromCloud()
-    })
-
-    // The main process forwards the agentfleet://auth?code=... deep link here.
+    // The loopback server forwards the OAuth redirect (…/callback?code=…) here.
     const offCb = window.fleet.onAuthCallback((url) => {
       completeLoginFromCallback(url).catch((e) => setError((e as Error).message))
     })
+    return () => offCb()
+  }, [setError])
 
-    return () => {
-      offAuth()
-      offCb()
-    }
-  }, [restoreFromCloud, setError])
+  const stopsAgents =
+    liveCount > 0
+      ? `\n\n${liveCount} running agent${liveCount === 1 ? '' : 's'} will stop (you can resume ${liveCount === 1 ? 'it' : 'them'} later).`
+      : ''
 
   if (!isCloudEnabled) {
     if (compact) {
@@ -62,6 +55,10 @@ export function AuthBar({ compact = false }: { compact?: boolean } = {}): JSX.El
   }
 
   const login = async (): Promise<void> => {
+    if (
+      stopsAgents &&
+      !confirm(`Sign in with GitHub?\n\nYou'll see your account's projects instead of the ones saved on this computer.${stopsAgents}`)
+    ) return
     setBusy(true)
     try {
       await startGitHubLogin()
@@ -73,7 +70,7 @@ export function AuthBar({ compact = false }: { compact?: boolean } = {}): JSX.El
   }
 
   const confirmSignOut = (): void => {
-    if (confirm('Sign out of Agent Fleet?\n\nCloud sync stops until you sign in again. Your projects and agents stay on this computer.')) {
+    if (confirm(`Sign out of Agent Fleet?\n\nYour account's projects are hidden until you sign in again (nothing is deleted). While signed out you'll see the projects saved on this computer only.${stopsAgents}`)) {
       void signOut()
     }
   }

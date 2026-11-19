@@ -60,8 +60,41 @@ export async function getSession(): Promise<Session | null> {
   return data.session
 }
 
-export function onAuthChange(cb: (session: Session | null) => void): () => void {
+export function onAuthChange(cb: (session: Session | null, event: string) => void): () => void {
   if (!supabase) return () => {}
-  const { data } = supabase.auth.onAuthStateChange((_e, session) => cb(session))
+  const { data } = supabase.auth.onAuthStateChange((e, session) => cb(session, e))
   return () => data.subscription.unsubscribe()
+}
+
+/** The signed-in account, as far as the app needs it. */
+export interface Account {
+  id: string
+  email: string | null
+}
+
+export function accountOf(session: Session): Account {
+  return { id: session.user.id, email: session.user.email ?? null }
+}
+
+/**
+ * The signed-in account, or null when signed out. Offline with an expired
+ * access token getSession() can't refresh and returns null, but the account is
+ * still signed in (its session is still saved), so fall back to the saved one —
+ * otherwise an offline start would show the signed-out projects.
+ */
+export async function currentAccount(): Promise<Account | null> {
+  if (!supabase) return null
+  const session = await getSession().catch(() => null)
+  if (session) return accountOf(session)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key || !/^sb-.+-auth-token$/.test(key)) continue
+      const user = JSON.parse(localStorage.getItem(key) ?? 'null')?.user
+      if (typeof user?.id === 'string') return { id: user.id, email: typeof user.email === 'string' ? user.email : null }
+    }
+  } catch {
+    // unreadable storage: treat as signed out
+  }
+  return null
 }

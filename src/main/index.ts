@@ -5,7 +5,6 @@ import { detectClaude } from './claude'
 import { sessionManager } from './sessionManager'
 import { startAuthServer, stopAuthServer } from './authServer'
 import { parseHook } from './attention'
-import { store } from './store'
 import { IPC } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -164,10 +163,8 @@ app.on('web-contents-created', (_e, wc) => {
 })
 
 app.whenReady().then(async () => {
-  // No agents are alive at startup — clear any stale 'running' statuses so the
-  // UI shows persisted tabs as resumable.
-  await store.markAllStopped()
-
+  // (Stale 'running' statuses are cleared whenever a store file is opened; the
+  // renderer picks the signed-in account's file via store:setUser.)
   registerIpc(() => mainWindow)
 
   // Loopback server that catches the GitHub/Supabase OAuth redirect.

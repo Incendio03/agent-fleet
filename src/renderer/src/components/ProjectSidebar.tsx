@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { AuthBar } from './AuthBar'
 import { SettingsDialog } from './SettingsDialog'
+import { isCloudEnabled } from '../lib/supabase'
 
 const COLLAPSE_KEY = 'fleet.sidebar.collapsed'
 
@@ -55,6 +56,7 @@ export function ProjectSidebar({
   const selectProject = useStore((s) => s.selectProject)
   const removeProject = useStore((s) => s.removeProject)
   const attention = useStore((s) => s.attention)
+  const account = useStore((s) => s.account)
   const [showSettings, setShowSettings] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === '1' } catch { return false }
@@ -85,6 +87,19 @@ export function ProjectSidebar({
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
 
       <div className="project-list">
+        {/* Which set this is: the account's (synced) or this computer's. */}
+        {isCloudEnabled && !collapsed && !loading && (
+          <div
+            className="project-scope"
+            title={
+              account
+                ? `Projects in ${account.email ?? 'your account'}, synced across your devices.`
+                : "Projects saved on this computer only. Sign in to see your account's projects."
+            }
+          >
+            {account ? 'Your account' : 'This computer'}
+          </div>
+        )}
         {loading ? (
           <div className="empty-hint"><span className="spinner sm" />{!collapsed && ' Loading…'}</div>
         ) : (
