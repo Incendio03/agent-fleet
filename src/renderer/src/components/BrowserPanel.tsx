@@ -350,6 +350,7 @@ function BrowserTabView({
       className={`browser-view ${visible ? '' : 'hidden'}`}
       src={tab.src}
       partition="persist:fleet-browser"
+      allowpopups="true"
     />
   )
 }

@@ -33,6 +33,11 @@ The running version is shown in the app's sidebar header.
 
 
 ### Fixed
+- Side browser: links that open a new tab (target=_blank, window.open) did nothing
+  or fell back to another URL — the page view lacked `allowpopups`, so popups were
+  blocked before our handler. Now they open as browser tabs; window.open() returns a
+  real (hidden) window so sites don't take their "popup blocked" fallback, and
+  "open blank, then set location" is handled too.
 - Terminal scrollbar didn't follow the conversation or the mouse wheel: with
   Claude Code's `"tui": "fullscreen"` setting, Claude drew full-screen and scrolled
   on its own. Agents now run with the classic interface (`"tui": "default"` via

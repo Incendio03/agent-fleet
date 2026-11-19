@@ -18,6 +18,8 @@ declare namespace JSX {
     webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
       src?: string
       partition?: string
+      /** Let pages open new windows (we turn them into browser tabs). */
+      allowpopups?: string
     }
   }
 }

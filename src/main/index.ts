@@ -89,16 +89,46 @@ if (!gotLock) {
   })
 }
 
-// Links that try to open a new window inside the side browser load in place.
 app.on('web-contents-created', (_e, wc) => {
   if (wc.getType() !== 'webview') return
-  // Links that want a new window (target=_blank, window.open) open a browser tab.
+
+  // Pages that open a new window (target=_blank links, window.open) get a tab
+  // in the side browser instead. The <webview> needs `allowpopups` for these to
+  // reach us at all. We ALLOW a hidden window rather than deny, so window.open()
+  // returns a real window — sites often fall back to another URL (e.g. prod)
+  // when it returns null — and so "open blank, then set .location" works too.
+  // The hidden window's first http(s) URL becomes the tab; then it's destroyed.
+  const openTab = (url: string): void => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.browserOpenTab, url)
+    else void wc.loadURL(url)
+  }
   wc.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) {
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.browserOpenTab, url)
-      else void wc.loadURL(url)
+    if (/^https?:/i.test(url) || url === '' || url === 'about:blank') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          show: false,
+          webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false }
+        }
+      }
     }
     return { action: 'deny' }
+  })
+  wc.on('did-create-window', (win, details) => {
+    let taken = false
+    const take = (u?: string): void => {
+      if (taken || !u || !/^https?:/i.test(u)) return
+      taken = true
+      openTab(u)
+      if (!win.isDestroyed()) win.destroy()
+    }
+    take(details.url)
+    win.webContents.on('will-navigate', (_ev, u) => take(u))
+    win.webContents.on('did-start-navigation', (ev: unknown, u?: string) =>
+      take(u ?? (ev as { url?: string } | undefined)?.url)
+    )
+    // A window that never navigates anywhere useful is cleaned up.
+    setTimeout(() => { if (!win.isDestroyed()) win.destroy() }, 15_000)
   })
 
   // Browser-style zoom: Ctrl +/-/0 and Ctrl+mouse wheel. Keys pressed inside
