@@ -23,6 +23,9 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+### Changed
+- The browser page after GitHub sign-in is a simple card in the app's colours (no
+  emoji), and says so when sign-in didn't complete instead of claiming success.
 
 ## [0.6.0] — 2026-11-19
 ### Added
