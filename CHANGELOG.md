@@ -23,6 +23,8 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+
+## [0.6.0] — 2026-11-19
 ### Added
 - **Separate projects per account.** Each signed-in account sees only its own
   projects and agents; signed out, you see the ones saved on this computer.
@@ -45,7 +47,6 @@ The running version is shown in the app's sidebar header.
   crashed; projects show a count. Windows notification + taskbar flash when you're
   not looking (click to jump to the agent). Badges clear when you open the tab.
   Settings → Notifications to choose which alerts pop up.
-
 
 ### Fixed
 - Windows notifications were titled "electron.app.Electron"; they now say "Agent Fleet"
