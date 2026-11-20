@@ -3,6 +3,7 @@ import type { AgentInfo, AgentKind, AgentStatus, Chat } from '@shared/types'
 import { useStore } from '../store/useStore'
 import { NEW_CHAT, lastChoice, useChatStore, type ChatChoice } from '../store/useChatStore'
 import { IconAgent, IconModel, modelOptions } from './AgentBar'
+import { ChatSkillsPicker } from './ChatSkillsPicker'
 
 /** An image waiting to be sent with the next message. */
 interface PendingImage {
@@ -101,7 +102,9 @@ export function ChatInput({ chat }: { chat: Chat | undefined }): JSX.Element {
   }
 
   // Who answers: the chat's own agent/model, or (new chat) your pick / the default.
-  const choice: ChatChoice | null = chat ? { agent: chat.agent, model: chat.model } : picked ?? defaultChoice(agents, status)
+  const choice: ChatChoice | null = chat
+    ? { agent: chat.agent, model: chat.model, skills: chat.skills ?? [] }
+    : picked ?? defaultChoice(agents, status)
   const agent = agents.find((a) => a.id === choice?.agent)
   const anyUsable = agents.some((a) => usable(a, status))
   const ready = Boolean(choice && agent && usable(agent, status))
@@ -349,12 +352,18 @@ export function ChatInput({ chat }: { chat: Chat | undefined }): JSX.Element {
               <select
                 value={choice.model}
                 disabled={busy || models.length === 0}
-                onChange={(e) => onPick({ agent: choice.agent, model: e.target.value })}
+                onChange={(e) => onPick({ agent: choice.agent, model: e.target.value, skills: choice.skills ?? [] })}
               >
                 {models.length === 0 && <option value="">Default</option>}
                 {models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
             </label>
+            <ChatSkillsPicker
+              agent={choice.agent}
+              selected={choice.skills ?? []}
+              disabled={busy}
+              onChange={(skills) => onPick({ agent: choice.agent, model: choice.model, skills })}
+            />
           </div>
         )}
         <span className="composer-hint">

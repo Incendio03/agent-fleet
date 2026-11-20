@@ -39,11 +39,14 @@ src/
                         (claude -p stream-json, kept per chat; codex exec --json per message)
     chatStore.ts        chat list + messages + images on disk (data/chats, or
                         data/users/<userId>/chats); no Electron imports
+    skills.ts           skills per agent: list / turn off (skills-disabled/) / remove /
+                        install via a review stage; per-chat plugin of chosen skills
   preload/index.ts      the secure window.fleet bridge (only API the UI can call)
   renderer/src/
     App.tsx             layout; mounts terminals; resume overlay; chat view vs project view
     components/         ProjectSidebar, TabBar, TerminalView, dialogs, AuthBar,
-                        ChatList / ChatView / ChatInput / Markdown (general chats)
+                        ChatList / ChatView / ChatInput / Markdown (general chats),
+                        SkillsSettings + ChatSkillsPicker (skills)
     lib/supabase.ts     optional Supabase client + GitHub PKCE login
     lib/cloudSync.ts    push/pull projects+tabs <-> Supabase (maps camel<->snake)
     lib/terminalRegistry.ts  routes PTY output to the right xterm, buffers early bytes
@@ -68,6 +71,17 @@ supabase/migrations/    SQL schema + RLS (0001_init, 0002_session_id)
   source of truth; the CLI's session is only its memory, and is rebuilt by replaying the
   messages as text when it's gone or the chat switches agent. Chats are per account like
   projects, local only (not in Supabase yet).
+- **Skills belong to each agent CLI; we only manage its folders.** Claude Code:
+  `<config>/skills`, Codex: `<CODEX_HOME>/skills` (respect CLAUDE_CONFIG_DIR /
+  CODEX_HOME). Off = moved to a sibling `skills-disabled/`; remove = Recycle Bin.
+  Installing always goes through a stage + review (stageSkills -> installStaged);
+  never copy into a skills folder directly. Copies never follow symlinks.
+- **Skills in chats are opt-in per chat** (`Chat.skills`). A Claude chat with skills
+  drops `--safe-mode`/`--disable-slash-commands` (safe mode also drops plugins) and
+  uses `--setting-sources "" --restricted --plugin-dir <copies> --add-dir <copies>`
+  with tools WebSearch,WebFetch,Skill,Read: only the chosen skills, Read confined to
+  them. Codex chats get the skills' SKILL.md bodies as instructions. Tested with a
+  real Claude chat: skill used, its reference file read, an outside file refused.
 - **The project view is never unmounted for a chat** (App.tsx hides `main.workspace`):
   TerminalView disposes its xterm on unmount, which would lose the scrollback.
 - **The left bar has two sections, Projects and Chats, each with the whole bar** (a
@@ -161,11 +175,15 @@ dev-time cost; the deployed app won't need them.)
    `appId: com.agentfleet.app` to match `setAppUserModelId` in main/index.ts); add
    electron-updater + GitHub Releases for auto-update (install once, self-updates).
    SemVer/CHANGELOG/tags are already in place to support this.
-4. **General chats, next.** (a) Codex chat has only been exercised up to its sign-in
+4. **Skills, next.** Plugin-provided skills aren't listed yet (`claude plugin list
+   --json` was empty here, so its format is unverified); marketplace browsing isn't
+   built; Codex project skills aren't listed; built-in Claude Code skills are visible
+   to a chat that has skills turned on (the chat prompt tells it to use only its own).
+5. **General chats, next.** (a) Codex chat has only been exercised up to its sign-in
    error: confirm a real reply, resume and web search once a Codex CLI is signed in.
    (b) Chats are local per account: syncing them needs new Supabase tables. (c) Not
    built: editing/regenerating an earlier message, per-chat effort level, non-image
    attachments, generated titles for Codex chats.
-5. **Nice-to-haves:** save terminal transcripts; per-tab "open PR" button; auto-clone a
+6. **Nice-to-haves:** save terminal transcripts; per-tab "open PR" button; auto-clone a
    project's repo on a new device during restore.
 ```

@@ -43,6 +43,23 @@ export interface ChatDeps {
   titleModel?: (agent: AgentKind) => Promise<string>
   /** How long an idle Claude chat process is kept for the next message. */
   idleMs?: number
+  /**
+   * The skills a chat turned on, ready for its agent: for Claude a plugin
+   * folder holding copies of them (loaded with --plugin-dir), for Codex their
+   * instructions as text. Missing = chats never use skills.
+   */
+  chatSkills?: (chat: Chat) => Promise<ChatSkills | null>
+  /** A chat is gone: drop whatever chatSkills prepared for it. */
+  dropChatSkills?: (chatId: string) => Promise<void>
+}
+
+export interface ChatSkills {
+  /** Claude: plugin folder with the chosen skills. */
+  pluginDir?: string
+  /** The skills actually available (installed and turned on). */
+  names: string[]
+  /** Their instructions as text (Codex, or a Claude without plugin support). */
+  instructions?: string
 }
 
 const LABEL: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
@@ -56,6 +73,13 @@ const CHAT_PROMPT = [
 ].join('\n\n')
 
 const CODEX_PROMPT = `${CHAT_PROMPT}\n\nDo not run shell commands or edit files in this chat, even though you may have tools for it: just converse.`
+
+/** Added to a Claude chat's instructions when it has skills (loaded as the plugin "chat-skills"). */
+const skillsNote = (names: string[]): string =>
+  `Skills turned on for this chat: ${names.map((n) => `chat-skills:${n}`).join(', ')}. ` +
+  "Use the Skill tool to load one of these whenever it applies to the user's request; don't use other skills. " +
+  "You can open a skill's own files (the ones its instructions refer to) with the Read tool."
+
 
 const TITLE_PROMPT =
   'You name chat conversations. Reply with a title for the conversation you are given: 2 to 6 words, in the language the user wrote in. Reply with the title only, with no quotes and no punctuation at the end.'
@@ -210,6 +234,7 @@ export class ChatManager {
    */
   async discard(chat: Chat): Promise<void> {
     await this.forget(chat.id)
+    await this.deps.dropChatSkills?.(chat.id).catch(() => undefined)
     const ids = [...(chat.oldSessions ?? []), ...(chat.agent === 'claude' && chat.sessionId ? [chat.sessionId] : [])]
     if (!ids.length) return
     const config = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
@@ -319,7 +344,9 @@ export class ChatManager {
 
   /** The chat's Claude process: the one kept from its last message, or a new one. */
   private async claudeFor(store: ChatStore, chat: Chat): Promise<ClaudeProc> {
-    const key = chat.model
+    // What the process was started with: a different model or skill set needs a new one.
+    const wanted = [...(chat.skills ?? [])].sort()
+    const key = `${chat.model}|${wanted.join(',')}`
     const kept = this.claude.get(chat.id)
     // Reusable only if it holds this very conversation with this model.
     if (kept && !kept.exited && kept.key === key && kept.sessionId === chat.sessionId) {
@@ -337,7 +364,8 @@ export class ChatManager {
     if (!cmd) throw new Error('Claude Code is not installed. See Settings → Agents.')
     const resume = Boolean(chat.sessionId)
     const sessionId = chat.sessionId ?? randomUUID()
-    const args = claudeArgs(await this.deps.claudeHelp(), { model: chat.model, sessionId, resume })
+    const skills = wanted.length && this.deps.chatSkills ? await this.deps.chatSkills(chat) : null
+    const args = claudeArgs(await this.deps.claudeHelp(), { model: chat.model, sessionId, resume, skills })
     const child = spawn(cmd.file, [...cmd.prefix, ...args], {
       cwd: await this.deps.cwd(),
       windowsHide: true,
@@ -380,7 +408,10 @@ export class ChatManager {
     const cmd = await this.deps.resolve('codex')
     if (!cmd) throw new Error('Codex is not installed. See Settings → Agents.')
     const cwd = await this.deps.cwd()
-    const args = [...cmd.prefix, ...codexArgs({ model: chat.model, sessionId: chat.sessionId, images, cwd, extras, prompt: CODEX_PROMPT })]
+    // Codex can't load just some skills for one chat, so the chosen ones come along as instructions.
+    const skills = chat.skills?.length && this.deps.chatSkills ? await this.deps.chatSkills(chat) : null
+    const prompt = skills?.instructions ? `${CODEX_PROMPT}\n\n${skills.instructions}` : CODEX_PROMPT
+    const args = [...cmd.prefix, ...codexArgs({ model: chat.model, sessionId: chat.sessionId, images, cwd, extras, prompt })]
     if (turn.stopped) return { ok: true }
     const child = spawn(cmd.file, args, { cwd, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
 
@@ -730,19 +761,43 @@ export function hasFlag(help: string, flag: string): boolean {
 }
 
 /** The `claude` invocation for a chat process (only flags this version supports). */
-export function claudeArgs(help: string, o: { model: string; sessionId: string; resume: boolean }): string[] {
+export function claudeArgs(
+  help: string,
+  o: { model: string; sessionId: string; resume: boolean; skills?: ChatSkills | null }
+): string[] {
   if (!hasFlag(help, '--input-format') || !/stream-json/.test(help) || !hasFlag(help, '--tools')) {
     throw new Error('This version of Claude Code is too old for chat. Update Claude Code, then try again.')
   }
   const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose']
   if (hasFlag(help, '--include-partial-messages')) args.push('--include-partial-messages')
-  // Web tools only: no file, shell or MCP tools, and no project customizations.
-  args.push('--tools', CLAUDE_TOOLS)
-  if (hasFlag(help, '--allowedTools')) args.push('--allowedTools', CLAUDE_TOOLS)
+  let prompt = CHAT_PROMPT
+  const pluginDir = o.skills?.pluginDir
+  const plugin = Boolean(pluginDir && o.skills?.names.length) && ['--plugin-dir', '--setting-sources', '--restricted', '--add-dir'].every((f) => hasFlag(help, f))
+  if (plugin && pluginDir && o.skills) {
+    // Skills on: load ONLY the chat's own plugin. --setting-sources "" keeps the
+    // user's settings, hooks and installed plugins out (what --safe-mode does,
+    // but safe mode would also drop our plugin); --restricted confines the Read
+    // tool to the working folder plus the plugin, so a skill can open its own
+    // files and nothing else.
+    const tools = `${CLAUDE_TOOLS},Skill,Read`
+    args.push('--tools', tools)
+    if (hasFlag(help, '--allowedTools')) args.push('--allowedTools', tools)
+    args.push('--setting-sources', '', '--restricted', '--plugin-dir', pluginDir, '--add-dir', pluginDir)
+    if (hasFlag(help, '--strict-mcp-config')) args.push('--strict-mcp-config')
+    prompt = `${CHAT_PROMPT}\n\n${skillsNote(o.skills.names)}`
+  } else {
+    // Web tools only: no file, shell or MCP tools, and no project customizations.
+    args.push('--tools', CLAUDE_TOOLS)
+    if (hasFlag(help, '--allowedTools')) args.push('--allowedTools', CLAUDE_TOOLS)
+    for (const f of ['--strict-mcp-config', '--disable-slash-commands', '--safe-mode']) if (hasFlag(help, f)) args.push(f)
+    if (o.skills?.instructions) prompt = `${CHAT_PROMPT}\n\n${o.skills.instructions}`
+  }
   if (hasFlag(help, '--permission-prompts')) args.push('--permission-prompts', 'none')
-  for (const f of ['--strict-mcp-config', '--disable-slash-commands', '--safe-mode']) if (hasFlag(help, f)) args.push(f)
-  if (hasFlag(help, '--system-prompt')) args.push('--system-prompt', CHAT_PROMPT)
-  else if (hasFlag(help, '--append-system-prompt')) args.push('--append-system-prompt', CHAT_PROMPT)
+  // Use the instructions given now, not ones recorded earlier in the conversation:
+  // turning skills on or off for a chat changes them.
+  if (hasFlag(help, '--system-prompt-snapshot')) args.push('--system-prompt-snapshot', 'off')
+  if (hasFlag(help, '--system-prompt')) args.push('--system-prompt', prompt)
+  else if (hasFlag(help, '--append-system-prompt')) args.push('--append-system-prompt', prompt)
   if (o.model && hasFlag(help, '--model')) args.push('--model', o.model)
   args.push(o.resume ? '--resume' : '--session-id', o.sessionId)
   return args

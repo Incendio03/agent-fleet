@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AgentKind, AgentStatus, Chat, ChatEvent, ChatLive, ChatMessage } from '@shared/types'
+import type { AgentKind, AgentStatus, Chat, ChatEvent, ChatLive, ChatMessage, SkillInfo } from '@shared/types'
 import { getNotifyPrefs, showNotification } from '../lib/notify'
 
 /**
@@ -16,6 +16,8 @@ export const NEW_CHAT = 'new'
 export interface ChatChoice {
   agent: AgentKind
   model: string
+  /** Skills this chat may use (names of the agent's installed skills). */
+  skills?: string[]
 }
 
 const CHOICE_KEY = 'fleet.chat.choice'
@@ -31,7 +33,8 @@ export function lastChoice(): ChatChoice | null {
 }
 
 export function rememberChoice(choice: ChatChoice): void {
-  try { localStorage.setItem(CHOICE_KEY, JSON.stringify(choice)) } catch { /* ignore */ }
+  // Skills are chosen per chat, so a new chat never inherits them.
+  try { localStorage.setItem(CHOICE_KEY, JSON.stringify({ agent: choice.agent, model: choice.model })) } catch { /* ignore */ }
 }
 
 const LAST_KEY = 'fleet.chat.last'
@@ -66,6 +69,10 @@ interface ChatState {
   agentStatus: Partial<Record<AgentKind, AgentStatus>>
   /** A problem with the last action, shown above the message box. */
   error: string | null
+  /** Installed skills per agent (for the chat's skill picker). */
+  skills: Partial<Record<AgentKind, SkillInfo[]>>
+  setSkills: (agent: AgentKind, list: SkillInfo[]) => void
+  loadSkills: (agent: AgentKind) => Promise<void>
 
   init: () => void
   /** Load the current account's chats (also after the account changes). */
@@ -109,6 +116,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   unread: {},
   agentStatus: {},
   error: null,
+  skills: {},
+
+  setSkills: (agent, list) => set((s) => ({ skills: { ...s.skills, [agent]: list } })),
+
+  loadSkills: async (agent) => {
+    if (typeof window.fleet.listSkills !== 'function') return
+    try {
+      const list = await window.fleet.listSkills(agent)
+      set((s) => ({ skills: { ...s.skills, [agent]: list } }))
+    } catch {
+      /* the picker just shows nothing */
+    }
+  },
 
   init: () => {
     if (subscribed || !get().available) return

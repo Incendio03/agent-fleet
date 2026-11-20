@@ -187,6 +187,8 @@ export interface Chat {
    * for answering any more; kept only so deleting the chat can remove them.
    */
   oldSessions?: string[]
+  /** Names of the agent's installed skills this chat may use (none = no skills). */
+  skills?: string[]
   createdAt: number
   updatedAt: number
 }
@@ -225,6 +227,7 @@ export interface CreateChatOptions {
   agent: AgentKind
   model: string
   title?: string
+  skills?: string[]
 }
 
 /** Editable fields of a chat. Changing the agent starts a new CLI conversation. */
@@ -232,7 +235,77 @@ export interface UpdateChatOptions {
   title?: string
   agent?: AgentKind
   model?: string
+  /** Skills this chat may use (replaces the list). */
+  skills?: string[]
 }
+
+// ---- Skills -------------------------------------------------------------------
+
+/**
+ * Where a skill comes from:
+ *   personal  the agent's own skills folder (installed by you; can be turned off/removed)
+ *   synced    synced from your Claude account (managed there)
+ *   builtin   shipped with the agent CLI
+ *   project   inside one of your projects (managed in that project)
+ */
+export type SkillScope = 'personal' | 'synced' | 'builtin' | 'project'
+
+/** An installed skill: a folder with a SKILL.md, as an agent CLI sees it. */
+export interface SkillInfo {
+  agent: AgentKind
+  /** Folder name; how the agent knows it. */
+  name: string
+  description: string
+  scope: SkillScope
+  /** Project name, for project skills. */
+  project?: string
+  /** Turned off skills are kept, but the agent doesn't load them. Personal skills only. */
+  enabled: boolean
+  /** Absolute folder path. */
+  path: string
+  /** Number of files besides SKILL.md. */
+  files: number
+  /** It ships scripts or programs (they run with the agent's permissions in agent tabs). */
+  hasScripts: boolean
+}
+
+/** One file of a skill being installed. */
+export interface SkillFile {
+  path: string
+  size: number
+  /** A script or program. */
+  script: boolean
+}
+
+/** A skill found in what you're installing, shown for review before it's copied in. */
+export interface StagedSkill {
+  /** Folder inside the source ('' = the source itself). */
+  dir: string
+  name: string
+  description: string
+  files: SkillFile[]
+  /** SKILL.md text (cut off when very long). */
+  skillMd: string
+  /** Tools the skill asks for (its allowed-tools line), if any. */
+  allowedTools?: string
+  /** Problems that stop it from being installed. */
+  errors: string[]
+  /** Things to look at before installing. */
+  warnings: string[]
+}
+
+/** What was found in a folder / zip / GitHub link, waiting for your OK. */
+export interface SkillStage {
+  id: string
+  /** Where it came from, as shown to you. */
+  source: string
+  skills: StagedSkill[]
+}
+
+export type SkillSource =
+  | { kind: 'folder' }
+  | { kind: 'zip' }
+  | { kind: 'github'; url: string }
 
 // ---- IPC channel names (single source of truth) --------------------------
 
@@ -286,6 +359,14 @@ export const IPC = {
   chatLive: 'chat:live', // replies in progress (chatId -> text so far), for a reloaded UI
   chatGuest: 'chat:guest', // chats saved on this computer while signed out
   chatAdoptGuest: 'chat:adoptGuest', // move signed-out chats into the signed-in account
+  skillsList: 'skills:list', // installed skills of one agent
+  skillsStage: 'skills:stage', // pick a folder / zip / GitHub link and look inside (nothing installed yet)
+  skillsInstall: 'skills:install', // copy reviewed skills into the agent's skills folder
+  skillsDiscard: 'skills:discard', // forget a staged source
+  skillsSetEnabled: 'skills:setEnabled',
+  skillsRemove: 'skills:remove', // to the Recycle Bin
+  skillsRead: 'skills:read', // SKILL.md + file list, for viewing
+  skillsReveal: 'skills:reveal', // show a skill's folder in Explorer
   // main -> renderer (events, pushed from backend)
   chatEvent: 'chat:event', // progress of a chat reply
   tabData: 'tab:data', // terminal output chunk

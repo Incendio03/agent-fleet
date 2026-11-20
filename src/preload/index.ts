@@ -19,7 +19,11 @@ import {
   type ChatLive,
   type ChatMessage,
   type CreateChatOptions,
-  type UpdateChatOptions
+  type UpdateChatOptions,
+  type SkillFile,
+  type SkillInfo,
+  type SkillSource,
+  type SkillStage
 } from '../shared/types'
 
 /**
@@ -131,6 +135,19 @@ const api = {
     ipcRenderer.on(IPC.chatEvent, h)
     return () => ipcRenderer.removeListener(IPC.chatEvent, h)
   },
+
+  // --- Skills ---
+  listSkills: (agent: AgentKind): Promise<SkillInfo[]> => ipcRenderer.invoke(IPC.skillsList, agent),
+  /** Pick a folder/zip (or pass a GitHub link) and look inside; null = cancelled. Installs nothing. */
+  stageSkills: (source: SkillSource): Promise<SkillStage | null> => ipcRenderer.invoke(IPC.skillsStage, source),
+  installSkills: (stageId: string, agent: AgentKind, dirs: string[], replace: boolean): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.skillsInstall, stageId, agent, dirs, replace),
+  discardSkills: (stageId: string): Promise<void> => ipcRenderer.invoke(IPC.skillsDiscard, stageId),
+  setSkillEnabled: (agent: AgentKind, name: string, enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke(IPC.skillsSetEnabled, agent, name, enabled),
+  removeSkill: (agent: AgentKind, name: string): Promise<void> => ipcRenderer.invoke(IPC.skillsRemove, agent, name),
+  readSkill: (path: string): Promise<{ skillMd: string; files: SkillFile[] }> => ipcRenderer.invoke(IPC.skillsRead, path),
+  revealSkill: (path: string): Promise<void> => ipcRenderer.invoke(IPC.skillsReveal, path),
 
   // --- Image viewer ---
   resolveImage: (tabId: string, n: number): Promise<string | null> =>

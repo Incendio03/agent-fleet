@@ -24,6 +24,21 @@ The running version is shown in the app's sidebar header.
 
 ## [Unreleased]
 ### Added
+- **Settings → Skills.** A tab per installed agent (Claude, Codex) listing its skills
+  by where they come from: installed by you, in your projects, synced from your
+  Claude account, or built in. Your own skills can be viewed, turned off (moved to a
+  `skills-disabled` folder next to the skills folder, so the agent ignores them) and
+  removed (to the Recycle Bin).
+  - **Install from a folder, a .zip or a GitHub link** (a whole repository or a
+    `…/tree/<branch>/<path>` link). Nothing is installed straight away: a review
+    screen lists every skill found, with its files and SKILL.md, warns about scripts
+    and pre-approved tools, and you tick what to install. Same-name skills are only
+    replaced when you say so. From GitHub only the skill folders are downloaded.
+  - **Skills in chats, per chat.** Off by default. A Skills menu next to the model
+    picker turns on any of your installed skills for that chat only. Claude chats
+    load just those skills and can open the skill's own files, nothing else. Codex
+    chats get the skills' instructions. Removed or turned-off skills show as
+    unavailable in the chats that used them.
 - **General chats.** A normal assistant chat next to your projects: your messages as
   bubbles, replies streaming in as formatted text (headings, lists, tables, code
   blocks with colours and a Copy button). Answers come from whichever agent you have
@@ -52,6 +67,8 @@ The running version is shown in the app's sidebar header.
     `npm install` after pulling).
 
 ### Changed
+- On/off options in Settings (Notifications, Terminal) sit on one line with their
+  checkbox again; a general dialog style was stacking them.
 - The browser page after GitHub sign-in is a simple card in the app's colours (no
   emoji), and says so when sign-in didn't complete instead of claiming success.
 - Clicking the project you're already in keeps its current agent tab (it used to jump

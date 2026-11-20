@@ -24,7 +24,11 @@ import {
   type ChatLive,
   type ChatMessage,
   type CreateChatOptions,
-  type UpdateChatOptions
+  type UpdateChatOptions,
+  type SkillInfo,
+  type SkillSource,
+  type SkillStage,
+  type SkillFile
 } from '@shared/types'
 import { store } from './store'
 import { sessionManager } from './sessionManager'
@@ -36,10 +40,32 @@ import { getPrefs, setPrefs } from './prefs'
 import { teamContext, projectMessages, projectSessionNames, readBoard, writeBoard } from './team'
 import { ChatManager } from './chat'
 import { chatStoreAt, cleanTitle, type ChatStore } from './chatStore'
+import {
+  buildChatPlugin,
+  discardStage,
+  installStaged,
+  listSkills,
+  readSkillDetails,
+  removeChatPlugin,
+  removeSkill,
+  setSkillEnabled,
+  skillInstructions,
+  skillRoots,
+  stageSkills
+} from './skills'
 
 const execFileAsync = promisify(execFile)
 
 let chatManager: ChatManager | null = null
+
+/** Where each chat's chosen skills are copied for its Claude process (see skills.ts). */
+const chatSkillsRoot = (): string => join(app.getPath('userData'), 'chat-skills')
+
+/** Skill names from the UI: folder-name shaped, no duplicates, a sane number. */
+function cleanSkillNames(names: unknown): string[] {
+  if (!Array.isArray(names)) return []
+  return [...new Set(names.map(String).filter((n) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(n)))].slice(0, 20)
+}
 
 /** Stop every chat reply and chat CLI process (the app is quitting). */
 export function shutdownChats(): void {
@@ -86,7 +112,19 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     emit: chatEvent,
     // The small/fast model names the chat, when this CLI has one.
     titleModel: async (agent) =>
-      (await detectAgents()).find((a) => a.id === agent)?.models.some((m) => m.id === 'haiku') ? 'haiku' : ''
+      (await detectAgents()).find((a) => a.id === agent)?.models.some((m) => m.id === 'haiku') ? 'haiku' : '',
+    // Skills a chat turned on: a plugin of copies for Claude, instructions text for Codex.
+    chatSkills: async (chat) => {
+      const names = chat.skills ?? []
+      if (!names.length) return null
+      if (chat.agent === 'claude') {
+        const built = await buildChatPlugin(chat.id, names, chatSkillsRoot())
+        return built ? { pluginDir: built.dir, names: built.names } : null
+      }
+      const instructions = await skillInstructions(chat.agent, names)
+      return instructions ? { names, instructions } : null
+    },
+    dropChatSkills: (chatId) => removeChatPlugin(chatId, chatSkillsRoot())
   }))
 
   /** Chats whose message is being saved right now (a reply is about to start). */
@@ -107,13 +145,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle(IPC.chatList, async (): Promise<Chat[]> => chats().list())
 
-  ipcMain.handle(IPC.chatCreate, async (_e, opts: CreateChatOptions): Promise<Chat> =>
-    chats().create({
+  ipcMain.handle(IPC.chatCreate, async (_e, opts: CreateChatOptions): Promise<Chat> => {
+    const st = chats()
+    const chat = await st.create({
       agent: opts?.agent === 'codex' ? 'codex' : 'claude',
       model: typeof opts?.model === 'string' ? opts.model : '',
       title: typeof opts?.title === 'string' ? opts.title : undefined
     })
-  )
+    const skills = cleanSkillNames(opts?.skills)
+    return skills.length ? st.update(chat.id, { skills }) : chat
+  })
 
   ipcMain.handle(IPC.chatMessages, async (_e, chatId: string): Promise<ChatMessage[]> => chats().messages(chatId))
 
@@ -187,8 +228,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         // chat later can remove it too.
         if (chat.agent === 'claude' && chat.sessionId) patch.oldSessions = [...(chat.oldSessions ?? []), chat.sessionId]
         patch.sessionId = undefined
+        // Skills are per agent: the other agent has its own (or none by that name).
+        patch.skills = undefined
         await manager.forget(chatId)
       }
+    }
+    if (Array.isArray(opts?.skills) && patch.skills === undefined && !('skills' in patch)) {
+      if (busy(chatId)) throw new Error('Wait for the reply to finish first.')
+      const skills = cleanSkillNames(opts.skills)
+      patch.skills = skills.length ? skills : undefined
     }
     return st.update(chatId, patch)
   })
@@ -209,6 +257,49 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(IPC.chatAdoptGuest, async (): Promise<Chat[]> => {
     if (!store.currentUser()) throw new Error('Not signed in.')
     return chats().adoptAll(chatStoreAt(store.chatsDir(null)))
+  })
+
+  // --- Skills -----------------------------------------------------------------
+  // Installed skills per agent, and installing new ones after a review step.
+  const stagingRoot = (): string => join(app.getPath('userData'), 'skill-staging')
+  const trash = (path: string): Promise<void> => shell.trashItem(path)
+  const agentArg = (a: unknown): AgentKind => (a === 'codex' ? 'codex' : 'claude')
+
+  ipcMain.handle(IPC.skillsList, async (_e, agent: AgentKind): Promise<SkillInfo[]> =>
+    listSkills(agentArg(agent), await store.listProjects())
+  )
+
+  // Pick a folder or zip (or take a GitHub link), copy it aside and look inside.
+  // Nothing is installed here; null = the file dialog was cancelled.
+  ipcMain.handle(IPC.skillsStage, async (_e, source: SkillSource): Promise<SkillStage | null> => {
+    if (source?.kind === 'github') return stageSkills({ kind: 'github', url: String(source.url ?? '') }, stagingRoot())
+    const zip = source?.kind === 'zip'
+    const win = getWindow()
+    const opts: Electron.OpenDialogOptions = zip
+      ? { title: 'Choose a skill .zip file', properties: ['openFile'], filters: [{ name: 'Zip files', extensions: ['zip'] }] }
+      : { title: 'Choose a skill folder (or a folder holding several)', properties: ['openDirectory'] }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    if (res.canceled || !res.filePaths[0]) return null
+    return stageSkills({ kind: zip ? 'zip' : 'folder', path: res.filePaths[0] }, stagingRoot())
+  })
+
+  ipcMain.handle(IPC.skillsInstall, async (_e, stageId: string, agent: AgentKind, dirs: string[], replace: boolean): Promise<string[]> =>
+    installStaged(String(stageId), agentArg(agent), Array.isArray(dirs) ? dirs.map(String) : [], Boolean(replace), trash, stagingRoot())
+  )
+  ipcMain.handle(IPC.skillsDiscard, async (_e, stageId: string): Promise<void> => discardStage(String(stageId), stagingRoot()))
+  ipcMain.handle(IPC.skillsSetEnabled, async (_e, agent: AgentKind, name: string, enabled: boolean): Promise<void> =>
+    setSkillEnabled(agentArg(agent), String(name), Boolean(enabled))
+  )
+  ipcMain.handle(IPC.skillsRemove, async (_e, agent: AgentKind, name: string): Promise<void> =>
+    removeSkill(agentArg(agent), String(name), trash)
+  )
+  ipcMain.handle(IPC.skillsRead, async (_e, path: string): Promise<{ skillMd: string; files: SkillFile[] }> =>
+    readSkillDetails(String(path), skillRoots(await store.listProjects()))
+  )
+  ipcMain.handle(IPC.skillsReveal, async (_e, path: string): Promise<void> => {
+    const roots = skillRoots(await store.listProjects())
+    const p = String(path)
+    if (roots.some((r) => p.toLowerCase().startsWith(r.toLowerCase()))) shell.showItemInFolder(join(p, 'SKILL.md'))
   })
 
   // --- Projects -------------------------------------------------------------

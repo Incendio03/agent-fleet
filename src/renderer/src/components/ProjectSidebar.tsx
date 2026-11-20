@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore'
 import { useChatStore } from '../store/useChatStore'
 import { AuthBar } from './AuthBar'
 import { ChatList } from './ChatList'
-import { SettingsDialog } from './SettingsDialog'
+import { SettingsDialog, type SectionId } from './SettingsDialog'
 import { isCloudEnabled } from '../lib/supabase'
 import { initials } from '../lib/initials'
 
@@ -88,14 +88,15 @@ export function ProjectSidebar({
   const selectChat = useChatStore((s) => s.select)
   const unreadChats = useChatStore((s) => Object.keys(s.unread).length)
   const chatsReplying = useChatStore((s) => Object.keys(s.live).length > 0)
-  const [showSettings, setShowSettings] = useState(false)
+  // Open on which section (false = closed).
+  const [showSettings, setShowSettings] = useState<SectionId | false>(false)
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === '1' } catch { return false }
   })
 
   // Other parts of the UI (e.g. a chat with no agent signed in) can ask for Settings.
   useEffect(() => {
-    const open = (): void => setShowSettings(true)
+    const open = (e: Event): void => setShowSettings((e as CustomEvent<{ section?: SectionId }>).detail?.section ?? 'agents')
     window.addEventListener('fleet:open-settings', open)
     return () => window.removeEventListener('fleet:open-settings', open)
   }, [])
@@ -142,7 +143,7 @@ export function ProjectSidebar({
           </>
         )}
       </div>
-      {showSettings && <SettingsDialog onClose={closeSettings} />}
+      {showSettings && <SettingsDialog initial={showSettings} onClose={closeSettings} />}
 
       <nav className="sidebar-nav" aria-label="Sections">
         <button
@@ -261,7 +262,7 @@ export function ProjectSidebar({
       )}
 
       <AuthBar compact={collapsed} />
-      <button className="sidebar-settings" onClick={() => setShowSettings(true)} title="Settings">
+      <button className="sidebar-settings" onClick={() => setShowSettings('agents')} title="Settings">
         <GearIcon />
         {!collapsed && <span>Settings</span>}
       </button>
