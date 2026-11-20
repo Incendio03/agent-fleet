@@ -23,6 +23,8 @@ The running version is shown in the app's sidebar header.
 ---
 
 ## [Unreleased]
+
+## [0.7.0] — 2026-11-20
 ### Added
 - **Settings → Skills.** A tab per installed agent (Claude, Codex) listing its skills
   by where they come from: installed by you, in your projects, synced from your
